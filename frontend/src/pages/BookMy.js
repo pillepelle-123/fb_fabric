@@ -1,7 +1,20 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
-import MenuBar from '../components/MenuBar';
+import {
+  Container,
+  Typography,
+  Button,
+  Grid,
+  Card,
+  CardContent,
+  CardActions,
+  Chip,
+  Box,
+  Fade,
+} from '@mui/material';
+import { Add as AddIcon, Settings as SettingsIcon } from '@mui/icons-material';
+import AppBarComponent from '../components/AppBarComponent';
 
 const BookMy = ({ token, setToken }) => {
   const [books, setBooks] = useState([]);
@@ -26,46 +39,78 @@ const BookMy = ({ token, setToken }) => {
 
 
   return (
-    <div>
-      <MenuBar setToken={setToken} />
-      <div style={{ padding: '20px' }}>
-      <h1>Meine Freundschaftsbücher</h1>
-      
-      <button 
-        onClick={() => navigate('/create-book')}
-        style={{ padding: '10px 20px', marginBottom: '20px' }}
-      >
-        Neues Buch erstellen
-      </button>
-
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: '20px' }}>
-        {books.map(book => (
-          <div 
-            key={book.id} 
-            style={{ 
-              border: '1px solid #ccc', 
-              padding: '20px', 
-              borderRadius: '8px',
-              cursor: 'pointer'
-            }}
-            onClick={() => navigate(`/book/${book.id}`)}
+    <>
+      <AppBarComponent setToken={setToken} />
+      <Container maxWidth="lg" sx={{ mt: 4, mb: 4 }}>
+        <Box sx={{ mb: 4 }}>
+          <Typography variant="h4" component="h1" gutterBottom>
+            Meine Freundschaftsbücher
+          </Typography>
+          <Button
+            variant="contained"
+            startIcon={<AddIcon />}
+            onClick={() => navigate('/book/create')}
+            sx={{ mb: 3 }}
           >
-            <h3>{book.title}</h3>
-            <p>{book.description}</p>
-            <small>Rolle: {book.role} | {book.size || 'A4'} | {book.orientation === 'landscape' ? 'Querformat' : 'Hochformat'}</small>
-            <div style={{ marginTop: '10px' }}>
-              <button 
-                onClick={(e) => { e.stopPropagation(); navigate(`/book/${book.id}/settings`); }}
-                style={{ padding: '5px 10px', fontSize: '12px' }}
-              >
-                Einstellungen
-              </button>
-            </div>
-          </div>
-        ))}
-      </div>
-    </div>
-    </div>
+            Neues Buch erstellen
+          </Button>
+        </Box>
+
+        <Grid container spacing={3}>
+          {books.map((book, index) => (
+            <Grid item xs={12} sm={6} md={4} key={book.id}>
+              <Fade in timeout={300 + index * 100}>
+                <Card
+                  elevation={2}
+                  sx={{
+                    height: '100%',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    cursor: 'pointer',
+                    transition: 'all 0.3s ease',
+                    '&:hover': {
+                      elevation: 8,
+                      transform: 'translateY(-4px)',
+                    },
+                  }}
+                  onClick={() => navigate(`/book/${book.id}`)}
+                >
+                  <CardContent sx={{ flexGrow: 1 }}>
+                    <Typography variant="h6" component="h2" gutterBottom>
+                      {book.title}
+                    </Typography>
+                    <Typography variant="body2" color="text.secondary" paragraph>
+                      {book.description}
+                    </Typography>
+                    <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
+                      <Chip label={book.role} size="small" color="primary" />
+                      <Chip label={book.size || 'A4'} size="small" variant="outlined" />
+                      <Chip 
+                        label={book.orientation === 'landscape' ? 'Querformat' : 'Hochformat'} 
+                        size="small" 
+                        variant="outlined" 
+                      />
+                    </Box>
+                  </CardContent>
+                  <CardActions>
+                    <Button
+                      size="small"
+                      startIcon={<SettingsIcon />}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        navigate(`/book/${book.id}/settings`);
+                      }}
+                    >
+                      Einstellungen
+                    </Button>
+                  </CardActions>
+                </Card>
+              </Fade>
+            </Grid>
+          ))}
+        </Grid>
+      </Container>
+    </>
   );
 };
 

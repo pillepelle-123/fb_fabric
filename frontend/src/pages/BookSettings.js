@@ -1,9 +1,25 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import axios from 'axios';
-import MenuBar from '../components/MenuBar';
+import {
+  Container,
+  Typography,
+  FormControl,
+  InputLabel,
+  Select,
+  MenuItem,
+  Button,
+  Box,
+  Paper,
+  CircularProgress,
+  Slide,
+} from '@mui/material';
+import { Save as SaveIcon, Cancel as CancelIcon } from '@mui/icons-material';
+import AppBarComponent from '../components/AppBarComponent';
+import { useSnackbar } from '../components/SnackbarProvider';
 
 const BookSettings = ({ token, setToken }) => {
+  const { showSnackbar } = useSnackbar();
   const { bookId } = useParams();
   const navigate = useNavigate();
   const [book, setBook] = useState(null);
@@ -49,60 +65,81 @@ const BookSettings = ({ token, setToken }) => {
         settings,
         { headers: { Authorization: `Bearer ${token}` } }
       );
-      alert('Einstellungen gespeichert!');
-      navigate('/my-books');
+      showSnackbar('Einstellungen gespeichert!', 'success');
+      navigate('/book/my');
     } catch (error) {
-      alert('Fehler beim Speichern: ' + (error.response?.data?.error || error.message));
+      showSnackbar('Fehler beim Speichern: ' + (error.response?.data?.error || error.message), 'error');
     }
   };
 
-  if (!book) return <div>Laden...</div>;
+  if (!book) return (
+    <>
+      <AppBarComponent setToken={setToken} />
+      <Container maxWidth="md" sx={{ mt: 4, display: 'flex', justifyContent: 'center' }}>
+        <CircularProgress />
+      </Container>
+    </>
+  );
 
   return (
-    <div>
-      <MenuBar setToken={setToken} />
-      <div style={{ padding: '20px', maxWidth: '600px' }}>
-        <h1>Bucheinstellungen: {book.title}</h1>
-        
-        <form onSubmit={saveSettings}>
-          <div style={{ marginBottom: '20px' }}>
-            <label style={{ display: 'block', marginBottom: '5px' }}>Größe:</label>
-            <select
-              value={settings.size}
-              onChange={(e) => setSettings({...settings, size: e.target.value})}
-              style={{ width: '100%', padding: '10px' }}
-            >
-              {sizeOptions.map(option => (
-                <option key={option.value} value={option.value}>
-                  {option.label}
-                </option>
-              ))}
-            </select>
-          </div>
+    <>
+      <AppBarComponent setToken={setToken} />
+      <Container maxWidth="md" sx={{ mt: 4, mb: 4 }}>
+        <Slide in direction="up" timeout={500}>
+          <Paper elevation={3} sx={{ p: 4 }}>
+            <Typography variant="h4" component="h1" gutterBottom>
+              Bucheinstellungen: {book.title}
+            </Typography>
+            
+            <Box component="form" onSubmit={saveSettings} sx={{ mt: 3 }}>
+              <FormControl fullWidth sx={{ mb: 3 }}>
+                <InputLabel>Größe</InputLabel>
+                <Select
+                  value={settings.size}
+                  label="Größe"
+                  onChange={(e) => setSettings({...settings, size: e.target.value})}
+                >
+                  {sizeOptions.map(option => (
+                    <MenuItem key={option.value} value={option.value}>
+                      {option.label}
+                    </MenuItem>
+                  ))}
+                </Select>
+              </FormControl>
 
-          <div style={{ marginBottom: '20px' }}>
-            <label style={{ display: 'block', marginBottom: '5px' }}>Ausrichtung:</label>
-            <select
-              value={settings.orientation}
-              onChange={(e) => setSettings({...settings, orientation: e.target.value})}
-              style={{ width: '100%', padding: '10px' }}
-            >
-              <option value="portrait">Hochformat</option>
-              <option value="landscape">Querformat</option>
-            </select>
-          </div>
+              <FormControl fullWidth sx={{ mb: 4 }}>
+                <InputLabel>Ausrichtung</InputLabel>
+                <Select
+                  value={settings.orientation}
+                  label="Ausrichtung"
+                  onChange={(e) => setSettings({...settings, orientation: e.target.value})}
+                >
+                  <MenuItem value="portrait">Hochformat</MenuItem>
+                  <MenuItem value="landscape">Querformat</MenuItem>
+                </Select>
+              </FormControl>
 
-          <div>
-            <button type="submit" style={{ padding: '10px 20px', marginRight: '10px' }}>
-              Speichern
-            </button>
-            <button type="button" onClick={() => navigate('/my-books')} style={{ padding: '10px 20px' }}>
-              Abbrechen
-            </button>
-          </div>
-        </form>
-      </div>
-    </div>
+              <Box sx={{ display: 'flex', gap: 2, justifyContent: 'flex-end' }}>
+                <Button
+                  variant="outlined"
+                  startIcon={<CancelIcon />}
+                  onClick={() => navigate('/book/my')}
+                >
+                  Abbrechen
+                </Button>
+                <Button
+                  type="submit"
+                  variant="contained"
+                  startIcon={<SaveIcon />}
+                >
+                  Speichern
+                </Button>
+              </Box>
+            </Box>
+          </Paper>
+        </Slide>
+      </Container>
+    </>
   );
 };
 

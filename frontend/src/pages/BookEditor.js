@@ -4,9 +4,29 @@ import { Tldraw } from 'tldraw';
 import 'tldraw/tldraw.css';
 import io from 'socket.io-client';
 import axios from 'axios';
-import MenuBar from '../components/MenuBar';
+import {
+  AppBar,
+  Toolbar,
+  Typography,
+  Button,
+  IconButton,
+  Box,
+  Chip,
+} from '@mui/material';
+import {
+  ArrowBack as ArrowBackIcon,
+  NavigateBefore as NavigateBeforeIcon,
+  NavigateNext as NavigateNextIcon,
+  Add as AddIcon,
+  Delete as DeleteIcon,
+  Save as SaveIcon,
+} from '@mui/icons-material';
+import AppBarComponent from '../components/AppBarComponent';
+import { useSnackbar } from '../components/SnackbarProvider';
+import ConfirmDialog from '../components/ConfirmDialog';
 
 const BookEditor = ({ token, setToken }) => {
+  const { showSnackbar } = useSnackbar();
   const { bookId } = useParams();
   const navigate = useNavigate();
   const [socket, setSocket] = useState(null);
@@ -15,6 +35,7 @@ const BookEditor = ({ token, setToken }) => {
   const [editor, setEditor] = useState(null);
   const [tempPages, setTempPages] = useState([]);
   const [deletedPages, setDeletedPages] = useState([]);
+  const [confirmDialog, setConfirmDialog] = useState({ open: false, onConfirm: null });
 
 
   useEffect(() => {
@@ -28,26 +49,7 @@ const BookEditor = ({ token, setToken }) => {
     return () => newSocket.close();
   }, [bookId, currentPage]);
 
-  // Auto-save canvas changes every 2 seconds
-  useEffect(() => {
-    if (!editor) return;
-    
-    const autoSave = setInterval(() => {
-      const canvasData = editor.store.getSnapshot();
-      
-      // Update temp page data
-      const tempPageIndex = tempPages.findIndex(p => p.page_number === currentPage);
-      if (tempPageIndex !== -1) {
-        setTempPages(prev => prev.map(p => 
-          p.page_number === currentPage 
-            ? { ...p, canvas_data: canvasData }
-            : p
-        ));
-      }
-    }, 2000);
-    
-    return () => clearInterval(autoSave);
-  }, [editor, currentPage, tempPages]);
+
 
   useEffect(() => {
     if (editor) {
@@ -89,7 +91,7 @@ const BookEditor = ({ token, setToken }) => {
 
   const savePage = async () => {
     if (!editor) {
-      alert('Editor not ready');
+      showSnackbar('Editor nicht bereit', 'warning');
       return;
     }
     
@@ -150,9 +152,9 @@ const BookEditor = ({ token, setToken }) => {
       setDeletedPages([]);
       fetchPages();
       
-      alert('All pages saved successfully!');
+      showSnackbar('Freundschaftsbuch erfolgreich gespeichert!', 'success');
     } catch (error) {
-      alert('Failed to save pages: ' + (error.response?.data?.error || error.message));
+      showSnackbar('Fehler beim Speichern: ' + (error.response?.data?.error || error.message), 'error');
     }
   };
 
@@ -216,18 +218,22 @@ const BookEditor = ({ token, setToken }) => {
   };
 
   const deletePage = () => {
-    if (confirm('Seite löschen?')) {
-      // Add to deleted pages if it's a saved page
-      if (pages.find(p => p.page_number === currentPage)) {
-        setDeletedPages(prev => [...prev, currentPage]);
+    setConfirmDialog({
+      open: true,
+      onConfirm: () => {
+        // Add to deleted pages if it's a saved page
+        if (pages.find(p => p.page_number === currentPage)) {
+          setDeletedPages(prev => [...prev, currentPage]);
+        }
+        
+        // Remove from temp pages if it's a temp page
+        setTempPages(prev => prev.filter(p => p.page_number !== currentPage));
+        
+        // Always go to previous page
+        setCurrentPage(Math.max(1, currentPage - 1));
+        setConfirmDialog({ open: false, onConfirm: null });
       }
-      
-      // Remove from temp pages if it's a temp page
-      setTempPages(prev => prev.filter(p => p.page_number !== currentPage));
-      
-      // Always go to previous page
-      setCurrentPage(Math.max(1, currentPage - 1));
-    }
+    });
   };
 
   const getTotalPages = () => {
@@ -241,79 +247,104 @@ const BookEditor = ({ token, setToken }) => {
   };
 
   return (
-    <div style={{ height: '100vh', display: 'flex', flexDirection: 'column' }}>
-      <MenuBar setToken={setToken} />
-      <div style={{ 
-        padding: '10px 20px', 
-        borderBottom: '1px solid #ccc',
-        display: 'flex',
-        justifyContent: 'space-between',
-        alignItems: 'center'
-      }}>
-        <button onClick={() => navigate('/book/my')}>← Zurück</button>
-        <div>
-          <button 
-            onClick={() => {
-              const allPages = [...pages, ...tempPages]
-                .filter(p => !deletedPages.includes(p.page_number))
-                .map(p => p.page_number)
-                .sort((a, b) => a - b);
-              const prevPage = allPages.reverse().find(p => p < currentPage);
-              if (prevPage) changePage(prevPage);
-            }}
-            disabled={(() => {
-              const allPages = [...pages, ...tempPages]
-                .filter(p => !deletedPages.includes(p.page_number))
-                .map(p => p.page_number)
-                .sort((a, b) => a - b);
-              return !allPages.find(p => p < currentPage);
-            })()}
-          >
-            ← Vorherige Seite
-          </button>
-          <span style={{ margin: '0 20px' }}>Seite {currentPage}</span>
-          <button 
-            onClick={() => {
-              const allPages = [...pages, ...tempPages]
-                .filter(p => !deletedPages.includes(p.page_number))
-                .map(p => p.page_number)
-                .sort((a, b) => a - b);
-              const nextPage = allPages.find(p => p > currentPage);
-              if (nextPage) changePage(nextPage);
-            }}
-            disabled={(() => {
-              const allPages = [...pages, ...tempPages]
-                .filter(p => !deletedPages.includes(p.page_number))
-                .map(p => p.page_number)
-                .sort((a, b) => a - b);
-              return !allPages.find(p => p > currentPage);
-            })()}
-          >
-            Nächste Seite →
-          </button>
-          <button 
-            onClick={addNewPage}
-            style={{ marginLeft: '10px' }}
-          >
-            Neue Seite
-          </button>
-          <button 
-            onClick={deletePage}
-            disabled={getTotalPages() <= 1}
-            style={{ marginLeft: '10px' }}
-          >
-            Seite löschen
-          </button>
-        </div>
-        <button onClick={savePage}>Speichern</button>
-      </div>
+    <Box sx={{ height: '100vh', display: 'flex', flexDirection: 'column' }}>
+      <AppBarComponent setToken={setToken} />
       
-      <div style={{ 
+      <AppBar position="static" color="default" elevation={1}>
+        <Toolbar variant="dense" sx={{ minHeight: 48 }}>
+          <IconButton
+            edge="start"
+            onClick={() => navigate('/book/my')}
+            sx={{ mr: 2 }}
+          >
+            <ArrowBackIcon />
+          </IconButton>
+          
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexGrow: 1 }}>
+            <IconButton
+              onClick={() => {
+                const allPages = [...pages, ...tempPages]
+                  .filter(p => !deletedPages.includes(p.page_number))
+                  .map(p => p.page_number)
+                  .sort((a, b) => a - b);
+                const prevPage = allPages.reverse().find(p => p < currentPage);
+                if (prevPage) changePage(prevPage);
+              }}
+              disabled={(() => {
+                const allPages = [...pages, ...tempPages]
+                  .filter(p => !deletedPages.includes(p.page_number))
+                  .map(p => p.page_number)
+                  .sort((a, b) => a - b);
+                return !allPages.find(p => p < currentPage);
+              })()}
+              size="small"
+            >
+              <NavigateBeforeIcon />
+            </IconButton>
+            
+            <Chip 
+              label={`Seite ${currentPage}`} 
+              variant="outlined" 
+              size="small"
+              sx={{ mx: 1 }}
+            />
+            
+            <IconButton
+              onClick={() => {
+                const allPages = [...pages, ...tempPages]
+                  .filter(p => !deletedPages.includes(p.page_number))
+                  .map(p => p.page_number)
+                  .sort((a, b) => a - b);
+                const nextPage = allPages.find(p => p > currentPage);
+                if (nextPage) changePage(nextPage);
+              }}
+              disabled={(() => {
+                const allPages = [...pages, ...tempPages]
+                  .filter(p => !deletedPages.includes(p.page_number))
+                  .map(p => p.page_number)
+                  .sort((a, b) => a - b);
+                return !allPages.find(p => p > currentPage);
+              })()}
+              size="small"
+            >
+              <NavigateNextIcon />
+            </IconButton>
+          </Box>
+          
+          <Box sx={{ display: 'flex', gap: 1 }}>
+            <Button
+              startIcon={<AddIcon />}
+              onClick={addNewPage}
+              size="small"
+              variant="outlined"
+            >
+              Neue Seite
+            </Button>
+            <Button
+              startIcon={<DeleteIcon />}
+              onClick={deletePage}
+              disabled={getTotalPages() <= 1}
+              size="small"
+              variant="outlined"
+              color="error"
+            >
+              Löschen
+            </Button>
+            <Button
+              startIcon={<SaveIcon />}
+              onClick={savePage}
+              size="small"
+              variant="contained"
+            >
+              Speichern
+            </Button>
+          </Box>
+        </Toolbar>
+      </AppBar>
+      
+      <Box className="tldraw-container" sx={{ 
         flex: 1, 
-        minHeight: 0,
-        transform: 'scale(1)',
-        transformOrigin: '0 0',
-        zoom: 1
+        minHeight: 0
       }}>
         <Tldraw 
           onMount={(editorInstance) => {
@@ -321,8 +352,16 @@ const BookEditor = ({ token, setToken }) => {
             editorInstance.setCamera({ x: 0, y: 0, z: 1 });
           }}
         />
-      </div>
-    </div>
+      </Box>
+      
+      <ConfirmDialog
+        open={confirmDialog.open}
+        title="Seite löschen"
+        message="Möchten Sie diese Seite wirklich löschen? Diese Aktion kann nicht rückgängig gemacht werden."
+        onConfirm={confirmDialog.onConfirm}
+        onCancel={() => setConfirmDialog({ open: false, onConfirm: null })}
+      />
+    </Box>
   );
 };
 

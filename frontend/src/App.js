@@ -1,5 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import { ThemeProvider, CssBaseline } from '@mui/material';
+import { lightTheme, darkTheme } from './theme';
+import { SnackbarProvider } from './components/SnackbarProvider';
 import Login from './pages/Login';
 import Dashboard from './pages/Dashboard';
 import BookMy from './pages/BookMy';
@@ -9,6 +12,7 @@ import BookEditor from './pages/BookEditor';
 
 function App() {
   const [token, setToken] = useState(localStorage.getItem('token'));
+  const [darkMode, setDarkMode] = useState(false);
 
   useEffect(() => {
     if (token) {
@@ -19,9 +23,12 @@ function App() {
   }, [token]);
 
   return (
-    <Router>
-      <div className="App">
-        <Routes>
+    <ThemeProvider theme={darkMode ? darkTheme : lightTheme}>
+      <CssBaseline />
+      <SnackbarProvider>
+        <Router>
+        <div className="App">
+          <Routes>
           <Route 
             path="/login" 
             element={!token ? <Login setToken={setToken} /> : <Navigate to="/dashboard" />} 
@@ -47,9 +54,11 @@ function App() {
             element={token ? <BookEditor token={token} setToken={setToken} /> : <Navigate to="/login" />} 
           />
           <Route path="/" element={<Navigate to="/dashboard" />} />
-        </Routes>
-      </div>
-    </Router>
+          </Routes>
+        </div>
+        </Router>
+      </SnackbarProvider>
+    </ThemeProvider>
   );
 }
 

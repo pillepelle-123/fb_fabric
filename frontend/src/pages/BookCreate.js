@@ -1,9 +1,25 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
-import MenuBar from '../components/MenuBar';
+import {
+  Container,
+  Typography,
+  TextField,
+  Button,
+  Select,
+  MenuItem,
+  FormControl,
+  InputLabel,
+  Box,
+  Paper,
+  Slide,
+} from '@mui/material';
+import { Save as SaveIcon, Cancel as CancelIcon } from '@mui/icons-material';
+import AppBarComponent from '../components/AppBarComponent';
+import { useSnackbar } from '../components/SnackbarProvider';
 
 const BookCreate = ({ token, setToken }) => {
+  const { showSnackbar } = useSnackbar();
   const navigate = useNavigate();
   const [formData, setFormData] = useState({
     title: '',
@@ -27,75 +43,88 @@ const BookCreate = ({ token, setToken }) => {
       });
       navigate('/book/my');
     } catch (error) {
-      alert('Fehler beim Erstellen: ' + (error.response?.data?.error || error.message));
+      showSnackbar('Fehler beim Erstellen: ' + (error.response?.data?.error || error.message), 'error');
     }
   };
 
   return (
-    <div>
-      <MenuBar setToken={setToken} />
-      <div style={{ padding: '20px', maxWidth: '600px' }}>
-        <h1>Neues Freundschaftsbuch erstellen</h1>
-        
-        <form onSubmit={createBook}>
-          <div style={{ marginBottom: '20px' }}>
-            <label style={{ display: 'block', marginBottom: '5px' }}>Titel:</label>
-            <input
-              type="text"
-              value={formData.title}
-              onChange={(e) => setFormData({...formData, title: e.target.value})}
-              style={{ width: '100%', padding: '10px' }}
-              required
-            />
-          </div>
+    <>
+      <AppBarComponent setToken={setToken} />
+      <Container maxWidth="md" sx={{ mt: 4, mb: 4 }}>
+        <Slide in direction="up" timeout={500}>
+          <Paper elevation={3} sx={{ p: 4 }}>
+            <Typography variant="h4" component="h1" gutterBottom>
+              Neues Freundschaftsbuch erstellen
+            </Typography>
+            
+            <Box component="form" onSubmit={createBook} sx={{ mt: 3 }}>
+              <TextField
+                fullWidth
+                label="Titel"
+                value={formData.title}
+                onChange={(e) => setFormData({...formData, title: e.target.value})}
+                required
+                sx={{ mb: 3 }}
+              />
 
-          <div style={{ marginBottom: '20px' }}>
-            <label style={{ display: 'block', marginBottom: '5px' }}>Beschreibung:</label>
-            <textarea
-              value={formData.description}
-              onChange={(e) => setFormData({...formData, description: e.target.value})}
-              style={{ width: '100%', padding: '10px', height: '80px' }}
-            />
-          </div>
+              <TextField
+                fullWidth
+                label="Beschreibung"
+                multiline
+                rows={3}
+                value={formData.description}
+                onChange={(e) => setFormData({...formData, description: e.target.value})}
+                sx={{ mb: 3 }}
+              />
 
-          <div style={{ marginBottom: '20px' }}>
-            <label style={{ display: 'block', marginBottom: '5px' }}>Größe:</label>
-            <select
-              value={formData.size}
-              onChange={(e) => setFormData({...formData, size: e.target.value})}
-              style={{ width: '100%', padding: '10px' }}
-            >
-              {sizeOptions.map(option => (
-                <option key={option.value} value={option.value}>
-                  {option.label}
-                </option>
-              ))}
-            </select>
-          </div>
+              <FormControl fullWidth sx={{ mb: 3 }}>
+                <InputLabel>Größe</InputLabel>
+                <Select
+                  value={formData.size}
+                  label="Größe"
+                  onChange={(e) => setFormData({...formData, size: e.target.value})}
+                >
+                  {sizeOptions.map(option => (
+                    <MenuItem key={option.value} value={option.value}>
+                      {option.label}
+                    </MenuItem>
+                  ))}
+                </Select>
+              </FormControl>
 
-          <div style={{ marginBottom: '20px' }}>
-            <label style={{ display: 'block', marginBottom: '5px' }}>Ausrichtung:</label>
-            <select
-              value={formData.orientation}
-              onChange={(e) => setFormData({...formData, orientation: e.target.value})}
-              style={{ width: '100%', padding: '10px' }}
-            >
-              <option value="portrait">Hochformat</option>
-              <option value="landscape">Querformat</option>
-            </select>
-          </div>
+              <FormControl fullWidth sx={{ mb: 4 }}>
+                <InputLabel>Ausrichtung</InputLabel>
+                <Select
+                  value={formData.orientation}
+                  label="Ausrichtung"
+                  onChange={(e) => setFormData({...formData, orientation: e.target.value})}
+                >
+                  <MenuItem value="portrait">Hochformat</MenuItem>
+                  <MenuItem value="landscape">Querformat</MenuItem>
+                </Select>
+              </FormControl>
 
-          <div>
-            <button type="submit" style={{ padding: '10px 20px', marginRight: '10px' }}>
-              Erstellen
-            </button>
-            <button type="button" onClick={() => navigate('/book/my')} style={{ padding: '10px 20px' }}>
-              Abbrechen
-            </button>
-          </div>
-        </form>
-      </div>
-    </div>
+              <Box sx={{ display: 'flex', gap: 2, justifyContent: 'flex-end' }}>
+                <Button
+                  variant="outlined"
+                  startIcon={<CancelIcon />}
+                  onClick={() => navigate('/book/my')}
+                >
+                  Abbrechen
+                </Button>
+                <Button
+                  type="submit"
+                  variant="contained"
+                  startIcon={<SaveIcon />}
+                >
+                  Erstellen
+                </Button>
+              </Box>
+            </Box>
+          </Paper>
+        </Slide>
+      </Container>
+    </>
   );
 };
 
