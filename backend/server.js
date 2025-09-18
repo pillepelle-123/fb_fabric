@@ -223,31 +223,49 @@ app.put('/api/books/:bookId/pages/:pageNumber', verifyToken, checkPermission('ed
   try {
     const { bookId, pageNumber } = req.params;
     const { canvasData } = req.body;
-    
-    console.log('Saving page:', bookId, pageNumber, 'Data size:', JSON.stringify(canvasData).length);
-    
-    const result = await pool.query(`
-      INSERT INTO public.pages (book_id, page_number, canvas_data)
-      VALUES ($1, $2, $3)
-      ON CONFLICT (book_id, page_number)
-      DO UPDATE SET canvas_data = $3
-      RETURNING *
-    `, [bookId, pageNumber, JSON.stringify(canvasData)]);
-    
-    io.to(`book-${bookId}`).emit('pageUpdate', {
-      pageNumber: parseInt(pageNumber),
-      canvasData
-    });
-    
-    console.log('Page saved successfully');
-    res.json(result.rows[0]);
+
+    // Begin a transaction
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+
+      // Update book's last_saved_at timestamp
+      await client.query(
+        'UPDATE public.books SET last_saved_at = CURRENT_TIMESTAMP WHERE id = $1',
+        [bookId]
+      );
+
+      // Check if page exists and update or insert
+      const existingPage = await client.query(
+        'SELECT * FROM public.pages WHERE book_id = $1 AND page_number = $2',
+        [bookId, pageNumber]
+      );
+
+      if (existingPage.rows.length > 0) {
+        await client.query(
+          'UPDATE public.pages SET canvas_data = $1 WHERE book_id = $2 AND page_number = $3',
+          [canvasData, bookId, pageNumber]
+        );
+      } else {
+        await client.query(
+          'INSERT INTO public.pages (book_id, page_number, canvas_data) VALUES ($1, $2, $3)',
+          [bookId, pageNumber, canvasData]
+        );
+      }
+
+      await client.query('COMMIT');
+      res.json({ message: 'Page saved successfully' });
+    } catch (err) {
+      await client.query('ROLLBACK');
+      throw err;
+    } finally {
+      client.release();
+    }
   } catch (err) {
     console.error('Failed to save page:', err);
-    res.status(500).json({ error: 'Failed to save page: ' + err.message });
+    res.status(500).json({ error: 'Failed to save page' });
   }
-});
-
-// Socket.io for real-time collaboration
+});// Socket.io for real-time collaboration
 io.on('connection', (socket) => {
   socket.on('joinBook', (bookId) => {
     socket.join(`book-${bookId}`);

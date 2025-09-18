@@ -33,7 +33,8 @@ const initDB = async () => {
         owner_id INTEGER REFERENCES users(id),
         size VARCHAR(20) DEFAULT 'A4',
         orientation VARCHAR(20) DEFAULT 'portrait',
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        last_saved_at TIMESTAMP
       )
     `);
     
@@ -41,7 +42,8 @@ const initDB = async () => {
     await pool.query(`
       ALTER TABLE books 
       ADD COLUMN IF NOT EXISTS size VARCHAR(20) DEFAULT 'A4',
-      ADD COLUMN IF NOT EXISTS orientation VARCHAR(20) DEFAULT 'portrait'
+      ADD COLUMN IF NOT EXISTS orientation VARCHAR(20) DEFAULT 'portrait',
+      ADD COLUMN IF NOT EXISTS last_saved_at TIMESTAMP
     `);
 
     await pool.query(`

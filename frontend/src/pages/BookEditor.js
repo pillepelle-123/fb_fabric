@@ -12,6 +12,8 @@ import {
   IconButton,
   Box,
   Chip,
+  Menu,
+  MenuItem,
 } from '@mui/material';
 import {
   ArrowBack as ArrowBackIcon,
@@ -36,6 +38,8 @@ const BookEditor = ({ token, setToken }) => {
   const [tempPages, setTempPages] = useState([]);
   const [deletedPages, setDeletedPages] = useState([]);
   const [confirmDialog, setConfirmDialog] = useState({ open: false, onConfirm: null });
+  const [bookTitle, setBookTitle] = useState('');
+  const [pageMenuAnchor, setPageMenuAnchor] = useState(null);
 
 
   useEffect(() => {
@@ -88,6 +92,24 @@ const BookEditor = ({ token, setToken }) => {
       console.error('Failed to fetch pages:', error);
     }
   };
+
+  // Fetch book title
+  useEffect(() => {
+    const fetchBookTitle = async () => {
+      try {
+        const response = await axios.get('http://localhost:5000/api/books', {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        const book = response.data.find(b => b.id === parseInt(bookId));
+        if (book) {
+          setBookTitle(book.title);
+        }
+      } catch (error) {
+        console.error('Failed to fetch book title:', error);
+      }
+    };
+    fetchBookTitle();
+  }, [bookId, token]);
 
   const savePage = async () => {
     if (!editor) {
@@ -260,7 +282,7 @@ const BookEditor = ({ token, setToken }) => {
             <ArrowBackIcon />
           </IconButton>
           
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexGrow: 1 }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
             <IconButton
               onClick={() => {
                 const allPages = [...pages, ...tempPages]
@@ -286,7 +308,8 @@ const BookEditor = ({ token, setToken }) => {
               label={`Seite ${currentPage}`} 
               variant="outlined" 
               size="small"
-              sx={{ mx: 1 }}
+              onClick={(e) => setPageMenuAnchor(e.currentTarget)}
+              sx={{ mx: 1, cursor: 'pointer' }}
             />
             
             <IconButton
@@ -310,6 +333,10 @@ const BookEditor = ({ token, setToken }) => {
               <NavigateNextIcon />
             </IconButton>
           </Box>
+          
+          <Typography variant="h6" sx={{ flexGrow: 1, textAlign: 'center' }}>
+            {bookTitle}
+          </Typography>
           
           <Box sx={{ display: 'flex', gap: 1 }}>
             <Button
@@ -353,6 +380,29 @@ const BookEditor = ({ token, setToken }) => {
           }}
         />
       </Box>
+      
+      <Menu
+        anchorEl={pageMenuAnchor}
+        open={Boolean(pageMenuAnchor)}
+        onClose={() => setPageMenuAnchor(null)}
+      >
+        {[...pages, ...tempPages]
+          .filter(p => !deletedPages.includes(p.page_number))
+          .sort((a, b) => a.page_number - b.page_number)
+          .map(page => (
+            <MenuItem
+              key={page.page_number}
+              onClick={() => {
+                changePage(page.page_number);
+                setPageMenuAnchor(null);
+              }}
+              selected={page.page_number === currentPage}
+            >
+              Seite {page.page_number}
+            </MenuItem>
+          ))
+        }
+      </Menu>
       
       <ConfirmDialog
         open={confirmDialog.open}
