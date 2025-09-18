@@ -44,7 +44,7 @@ function App() {
           />
           <Route 
             path="/book/:bookId" 
-            element={token ? <BookEditor token={token} /> : <Navigate to="/login" />} 
+            element={token ? <BookEditor token={token} setToken={setToken} /> : <Navigate to="/login" />} 
           />
           <Route path="/" element={<Navigate to="/dashboard" />} />
         </Routes>

@@ -4,8 +4,9 @@ import { Tldraw, createTLStore, defaultShapeUtils } from 'tldraw';
 import 'tldraw/tldraw.css';
 import io from 'socket.io-client';
 import axios from 'axios';
+import MenuBar from '../components/MenuBar';
 
-const BookEditor = ({ token }) => {
+const BookEditor = ({ token, setToken }) => {
   const { bookId } = useParams();
   const navigate = useNavigate();
   const [store] = useState(() => createTLStore({ shapeUtils: defaultShapeUtils }));
@@ -144,6 +145,7 @@ const BookEditor = ({ token }) => {
 
   return (
     <div style={{ height: '100vh', display: 'flex', flexDirection: 'column' }}>
+      <MenuBar setToken={setToken} />
       <div style={{ 
         padding: '10px 20px', 
         borderBottom: '1px solid #ccc',
@@ -151,7 +153,7 @@ const BookEditor = ({ token }) => {
         justifyContent: 'space-between',
         alignItems: 'center'
       }}>
-        <button onClick={() => navigate('/dashboard')}>← Zurück</button>
+        <button onClick={() => navigate('/my-books')}>← Zurück</button>
         <div>
           <button 
             onClick={() => changePage(Math.max(1, currentPage - 1))}
@@ -167,7 +169,7 @@ const BookEditor = ({ token }) => {
         <button onClick={savePage}>Speichern</button>
       </div>
       
-      <div style={{ flex: 1 }}>
+      <div style={{ flex: 1, minHeight: 0 }}>
         <Tldraw 
           store={store}
           onMount={(editor) => {
