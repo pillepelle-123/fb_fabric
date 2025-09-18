@@ -2,8 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import Login from './pages/Login';
 import Dashboard from './pages/Dashboard';
-import MyBooks from './pages/MyBooks';
-import CreateBook from './pages/CreateBook';
+import BookMy from './pages/BookMy';
+import BookCreate from './pages/BookCreate';
 import BookSettings from './pages/BookSettings';
 import BookEditor from './pages/BookEditor';
 
@@ -31,12 +31,12 @@ function App() {
             element={token ? <Dashboard token={token} setToken={setToken} /> : <Navigate to="/login" />} 
           />
           <Route 
-            path="/my-books" 
-            element={token ? <MyBooks token={token} setToken={setToken} /> : <Navigate to="/login" />} 
+            path="/book/my" 
+            element={token ? <BookMy token={token} setToken={setToken} /> : <Navigate to="/login" />} 
           />
           <Route 
-            path="/create-book" 
-            element={token ? <CreateBook token={token} setToken={setToken} /> : <Navigate to="/login" />} 
+            path="/book/create" 
+            element={token ? <BookCreate token={token} setToken={setToken} /> : <Navigate to="/login" />} 
           />
           <Route 
             path="/book/:bookId/settings" 

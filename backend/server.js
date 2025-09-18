@@ -90,6 +90,63 @@ app.post('/api/books', verifyToken, async (req, res) => {
       [bookResult.rows[0].id, req.userId, 'admin']
     );
     
+    // Create first page for the book with proper tldraw empty canvas
+    const emptyCanvasData = {
+      "store": {
+        "page:page": {
+          "id": "page:page",
+          "meta": {},
+          "name": "Page 1",
+          "index": "a1",
+          "typeName": "page"
+        },
+        "document:document": {
+          "id": "document:document",
+          "meta": {},
+          "name": "",
+          "gridSize": 10,
+          "typeName": "document"
+        }
+      },
+      "schema": {
+        "sequences": {
+          "com.tldraw.page": 1,
+          "com.tldraw.asset": 1,
+          "com.tldraw.shape": 4,
+          "com.tldraw.store": 4,
+          "com.tldraw.camera": 1,
+          "com.tldraw.pointer": 1,
+          "com.tldraw.document": 2,
+          "com.tldraw.instance": 25,
+          "com.tldraw.shape.geo": 9,
+          "com.tldraw.shape.draw": 2,
+          "com.tldraw.shape.line": 5,
+          "com.tldraw.shape.note": 7,
+          "com.tldraw.shape.text": 2,
+          "com.tldraw.asset.image": 5,
+          "com.tldraw.asset.video": 5,
+          "com.tldraw.shape.arrow": 5,
+          "com.tldraw.shape.embed": 4,
+          "com.tldraw.shape.frame": 0,
+          "com.tldraw.shape.group": 0,
+          "com.tldraw.shape.image": 4,
+          "com.tldraw.shape.video": 2,
+          "com.tldraw.binding.arrow": 0,
+          "com.tldraw.asset.bookmark": 2,
+          "com.tldraw.shape.bookmark": 2,
+          "com.tldraw.shape.highlight": 1,
+          "com.tldraw.instance_presence": 5,
+          "com.tldraw.instance_page_state": 5
+        },
+        "schemaVersion": 2
+      }
+    };
+    
+    await pool.query(
+      'INSERT INTO public.pages (book_id, page_number, canvas_data) VALUES ($1, $2, $3)',
+      [bookResult.rows[0].id, 1, JSON.stringify(emptyCanvasData)]
+    );
+    
     res.json(bookResult.rows[0]);
   } catch (err) {
     console.error('Book creation error:', err);
@@ -113,6 +170,40 @@ app.put('/api/books/:bookId/settings', verifyToken, checkPermission('admin'), as
     res.status(500).json({ error: 'Failed to update settings: ' + err.message });
   }
 });
+
+app.delete('/api/books/:bookId/pages/all', verifyToken, checkPermission('editor'), async (req, res) => {
+  try {
+    const { bookId } = req.params;
+    
+    await pool.query(
+      'DELETE FROM public.pages WHERE book_id = $1',
+      [bookId]
+    );
+    
+    res.json({ success: true });
+  } catch (err) {
+    console.error('All pages deletion error:', err);
+    res.status(500).json({ error: 'Failed to delete all pages: ' + err.message });
+  }
+});
+
+app.delete('/api/books/:bookId/pages/:pageNumber', verifyToken, checkPermission('editor'), async (req, res) => {
+  try {
+    const { bookId, pageNumber } = req.params;
+    
+    await pool.query(
+      'DELETE FROM public.pages WHERE book_id = $1 AND page_number = $2',
+      [bookId, pageNumber]
+    );
+    
+    res.json({ success: true });
+  } catch (err) {
+    console.error('Page deletion error:', err);
+    res.status(500).json({ error: 'Failed to delete page: ' + err.message });
+  }
+});
+
+
 
 // Page routes
 app.get('/api/books/:bookId/pages', verifyToken, checkPermission('viewer'), async (req, res) => {

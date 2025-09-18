@@ -54,15 +54,15 @@ const BookEditor = ({ token, setToken }) => {
       // First check temp pages for any changes
       const tempPageData = tempPages.find(p => p.page_number === currentPage);
       
-      if (tempPageData && tempPageData.canvas_data) {
+      if (tempPageData && tempPageData.canvas_data && typeof tempPageData.canvas_data === 'object' && tempPageData.canvas_data.store) {
         editor.store.loadSnapshot(tempPageData.canvas_data);
       } else {
         // Then check saved pages
         const savedPageData = pages.find(p => p.page_number === currentPage);
-        if (savedPageData && savedPageData.canvas_data) {
+        if (savedPageData && savedPageData.canvas_data && typeof savedPageData.canvas_data === 'object' && savedPageData.canvas_data.store) {
           editor.store.loadSnapshot(savedPageData.canvas_data);
-        } else if (tempPages.find(p => p.page_number === currentPage && !p.canvas_data)) {
-          // Clear canvas for new temp page without data
+        } else if (tempPages.find(p => p.page_number === currentPage)) {
+          // Clear canvas for new temp page without valid data
           setTimeout(() => {
             editor.selectAll();
             editor.deleteShapes(editor.getSelectedShapeIds());
@@ -97,28 +97,57 @@ const BookEditor = ({ token, setToken }) => {
       // Save current page canvas data first
       const canvasData = editor.store.getSnapshot();
       
-      // Save all temp pages to database
+      // Collect all pages with their data
+      const allPagesToSave = [];
+      
+      // Add existing pages (excluding deleted ones)
+      for (const page of pages) {
+        if (!deletedPages.includes(page.page_number)) {
+          const tempPageData = tempPages.find(p => p.page_number === page.page_number);
+          const pageData = page.page_number === currentPage ? canvasData : 
+                          (tempPageData?.canvas_data || page.canvas_data);
+          allPagesToSave.push({ original_number: page.page_number, canvas_data: pageData });
+        }
+      }
+      
+      // Add temp pages (new pages)
       for (const tempPage of tempPages) {
-        const pageData = tempPage.page_number === currentPage ? canvasData : (tempPage.canvas_data || {});
-        
+        if (!pages.find(p => p.page_number === tempPage.page_number)) {
+          const pageData = tempPage.page_number === currentPage ? canvasData : 
+                          (tempPage.canvas_data || {});
+          allPagesToSave.push({ original_number: tempPage.page_number, canvas_data: pageData });
+        }
+      }
+      
+      // Sort by original page number
+      allPagesToSave.sort((a, b) => a.original_number - b.original_number);
+      
+      // Delete all existing pages
+      await axios.delete(
+        `http://localhost:5000/api/books/${bookId}/pages/all`,
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      
+      // Save pages with sequential numbering (1, 2, 3...)
+      for (let i = 0; i < allPagesToSave.length; i++) {
         await axios.put(
-          `http://localhost:5000/api/books/${bookId}/pages/${tempPage.page_number}`,
-          { canvasData: pageData },
+          `http://localhost:5000/api/books/${bookId}/pages/${i + 1}`,
+          { canvasData: allPagesToSave[i].canvas_data },
           { headers: { Authorization: `Bearer ${token}` } }
         );
       }
       
-      // Save current page if it's not a temp page
-      if (!tempPages.find(p => p.page_number === currentPage)) {
-        await axios.put(
-          `http://localhost:5000/api/books/${bookId}/pages/${currentPage}`,
-          { canvasData },
-          { headers: { Authorization: `Bearer ${token}` } }
-        );
+      // Update current page to new sequential number
+      const currentPageIndex = allPagesToSave.findIndex(p => p.original_number === currentPage);
+      if (currentPageIndex !== -1) {
+        setCurrentPage(currentPageIndex + 1);
+      } else {
+        setCurrentPage(1);
       }
       
-      // Clear temp pages and refresh
+      // Clear temp pages and deleted pages, then refresh
       setTempPages([]);
+      setDeletedPages([]);
       fetchPages();
       
       alert('All pages saved successfully!');
@@ -128,6 +157,11 @@ const BookEditor = ({ token, setToken }) => {
   };
 
   const changePage = (newPage) => {
+    // Check if target page is deleted
+    if (deletedPages.includes(newPage)) {
+      return; // Don't navigate to deleted pages
+    }
+    
     // Save current page content before switching
     if (editor) {
       const canvasData = editor.store.getSnapshot();
@@ -165,9 +199,12 @@ const BookEditor = ({ token, setToken }) => {
     const maxPage = allPages.length > 0 ? Math.max(...allPages.map(p => p.page_number)) : 0;
     const newPageNumber = maxPage + 1;
     
+    // For new books with no pages, start with page 1
+    const pageNumber = allPages.length === 0 ? 1 : newPageNumber;
+    
     // Add to temporary pages
-    setTempPages(prev => [...prev, { page_number: newPageNumber, canvas_data: null }]);
-    setCurrentPage(newPageNumber);
+    setTempPages(prev => [...prev, { page_number: pageNumber, canvas_data: null }]);
+    setCurrentPage(pageNumber);
     
     // Clear canvas for new page
     if (editor) {
@@ -188,10 +225,14 @@ const BookEditor = ({ token, setToken }) => {
       // Remove from temp pages if it's a temp page
       setTempPages(prev => prev.filter(p => p.page_number !== currentPage));
       
-      // Navigate to previous page or page 1
-      const newPage = Math.max(1, currentPage - 1);
-      setCurrentPage(newPage);
+      // Always go to previous page
+      setCurrentPage(Math.max(1, currentPage - 1));
     }
+  };
+
+  const getTotalPages = () => {
+    const allPages = [...pages, ...tempPages].filter(p => !deletedPages.includes(p.page_number));
+    return allPages.length;
   };
 
   const getMaxPage = () => {
@@ -209,18 +250,44 @@ const BookEditor = ({ token, setToken }) => {
         justifyContent: 'space-between',
         alignItems: 'center'
       }}>
-        <button onClick={() => navigate('/my-books')}>← Zurück</button>
+        <button onClick={() => navigate('/book/my')}>← Zurück</button>
         <div>
           <button 
-            onClick={() => changePage(Math.max(1, currentPage - 1))}
-            disabled={currentPage === 1}
+            onClick={() => {
+              const allPages = [...pages, ...tempPages]
+                .filter(p => !deletedPages.includes(p.page_number))
+                .map(p => p.page_number)
+                .sort((a, b) => a - b);
+              const prevPage = allPages.reverse().find(p => p < currentPage);
+              if (prevPage) changePage(prevPage);
+            }}
+            disabled={(() => {
+              const allPages = [...pages, ...tempPages]
+                .filter(p => !deletedPages.includes(p.page_number))
+                .map(p => p.page_number)
+                .sort((a, b) => a - b);
+              return !allPages.find(p => p < currentPage);
+            })()}
           >
             ← Vorherige Seite
           </button>
           <span style={{ margin: '0 20px' }}>Seite {currentPage}</span>
           <button 
-            onClick={() => changePage(currentPage + 1)}
-            disabled={currentPage >= getMaxPage()}
+            onClick={() => {
+              const allPages = [...pages, ...tempPages]
+                .filter(p => !deletedPages.includes(p.page_number))
+                .map(p => p.page_number)
+                .sort((a, b) => a - b);
+              const nextPage = allPages.find(p => p > currentPage);
+              if (nextPage) changePage(nextPage);
+            }}
+            disabled={(() => {
+              const allPages = [...pages, ...tempPages]
+                .filter(p => !deletedPages.includes(p.page_number))
+                .map(p => p.page_number)
+                .sort((a, b) => a - b);
+              return !allPages.find(p => p > currentPage);
+            })()}
           >
             Nächste Seite →
           </button>
@@ -232,6 +299,7 @@ const BookEditor = ({ token, setToken }) => {
           </button>
           <button 
             onClick={deletePage}
+            disabled={getTotalPages() <= 1}
             style={{ marginLeft: '10px' }}
           >
             Seite löschen

@@ -20,7 +20,7 @@ const MenuBar = ({ setToken }) => {
     }}>
       <div>
         <Link to="/dashboard" style={{ marginRight: '20px', textDecoration: 'none' }}>Dashboard</Link>
-        <Link to="/my-books" style={{ textDecoration: 'none' }}>Meine Bücher</Link>
+        <Link to="/book/my" style={{ textDecoration: 'none' }}>Bücher</Link>
       </div>
       <button onClick={logout}>Logout</button>
     </div>
