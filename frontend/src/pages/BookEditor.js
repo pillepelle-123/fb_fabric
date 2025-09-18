@@ -13,6 +13,8 @@ const BookEditor = ({ token, setToken }) => {
   const [currentPage, setCurrentPage] = useState(1);
   const [pages, setPages] = useState([]);
   const [editor, setEditor] = useState(null);
+  const [tempPages, setTempPages] = useState([]);
+  const [deletedPages, setDeletedPages] = useState([]);
 
 
   useEffect(() => {
@@ -26,14 +28,49 @@ const BookEditor = ({ token, setToken }) => {
     return () => newSocket.close();
   }, [bookId, currentPage]);
 
+  // Auto-save canvas changes every 2 seconds
   useEffect(() => {
-    if (editor && pages.length > 0) {
-      const currentPageData = pages.find(p => p.page_number === currentPage);
-      if (currentPageData && currentPageData.canvas_data) {
-        editor.store.loadSnapshot(currentPageData.canvas_data);
+    if (!editor) return;
+    
+    const autoSave = setInterval(() => {
+      const canvasData = editor.store.getSnapshot();
+      
+      // Update temp page data
+      const tempPageIndex = tempPages.findIndex(p => p.page_number === currentPage);
+      if (tempPageIndex !== -1) {
+        setTempPages(prev => prev.map(p => 
+          p.page_number === currentPage 
+            ? { ...p, canvas_data: canvasData }
+            : p
+        ));
+      }
+    }, 2000);
+    
+    return () => clearInterval(autoSave);
+  }, [editor, currentPage, tempPages]);
+
+  useEffect(() => {
+    if (editor) {
+      // First check temp pages for any changes
+      const tempPageData = tempPages.find(p => p.page_number === currentPage);
+      
+      if (tempPageData && tempPageData.canvas_data) {
+        editor.store.loadSnapshot(tempPageData.canvas_data);
+      } else {
+        // Then check saved pages
+        const savedPageData = pages.find(p => p.page_number === currentPage);
+        if (savedPageData && savedPageData.canvas_data) {
+          editor.store.loadSnapshot(savedPageData.canvas_data);
+        } else if (tempPages.find(p => p.page_number === currentPage && !p.canvas_data)) {
+          // Clear canvas for new temp page without data
+          setTimeout(() => {
+            editor.selectAll();
+            editor.deleteShapes(editor.getSelectedShapeIds());
+          }, 100);
+        }
       }
     }
-  }, [editor, pages, currentPage]);
+  }, [editor, pages, tempPages, deletedPages, currentPage]);
 
 
 
@@ -57,31 +94,109 @@ const BookEditor = ({ token, setToken }) => {
     }
     
     try {
+      // Save current page canvas data first
       const canvasData = editor.store.getSnapshot();
       
-      const response = await axios.put(
-        `http://localhost:5000/api/books/${bookId}/pages/${currentPage}`,
-        { canvasData },
-        { headers: { Authorization: `Bearer ${token}` } }
-      );
+      // Save all temp pages to database
+      for (const tempPage of tempPages) {
+        const pageData = tempPage.page_number === currentPage ? canvasData : (tempPage.canvas_data || {});
+        
+        await axios.put(
+          `http://localhost:5000/api/books/${bookId}/pages/${tempPage.page_number}`,
+          { canvasData: pageData },
+          { headers: { Authorization: `Bearer ${token}` } }
+        );
+      }
       
-      alert('Page saved successfully!');
+      // Save current page if it's not a temp page
+      if (!tempPages.find(p => p.page_number === currentPage)) {
+        await axios.put(
+          `http://localhost:5000/api/books/${bookId}/pages/${currentPage}`,
+          { canvasData },
+          { headers: { Authorization: `Bearer ${token}` } }
+        );
+      }
+      
+      // Clear temp pages and refresh
+      setTempPages([]);
+      fetchPages();
+      
+      alert('All pages saved successfully!');
     } catch (error) {
-      alert('Failed to save page: ' + (error.response?.data?.error || error.message));
+      alert('Failed to save pages: ' + (error.response?.data?.error || error.message));
     }
   };
 
   const changePage = (newPage) => {
+    // Save current page content before switching
+    if (editor) {
+      const canvasData = editor.store.getSnapshot();
+      
+      // Update temp page if it exists, or update saved page data
+      const tempPageIndex = tempPages.findIndex(p => p.page_number === currentPage);
+      if (tempPageIndex !== -1) {
+        setTempPages(prev => prev.map(p => 
+          p.page_number === currentPage 
+            ? { ...p, canvas_data: canvasData }
+            : p
+        ));
+      } else {
+        // For saved pages, we need to track changes too
+        setTempPages(prev => {
+          const existingTemp = prev.find(p => p.page_number === currentPage);
+          if (existingTemp) {
+            return prev.map(p => 
+              p.page_number === currentPage 
+                ? { ...p, canvas_data: canvasData }
+                : p
+            );
+          } else {
+            return [...prev, { page_number: currentPage, canvas_data: canvasData }];
+          }
+        });
+      }
+    }
+    
     setCurrentPage(newPage);
   };
 
   const addNewPage = () => {
-    const maxPage = pages.length > 0 ? Math.max(...pages.map(p => p.page_number)) : 0;
-    setCurrentPage(maxPage + 1);
+    const allPages = [...pages, ...tempPages].filter(p => !deletedPages.includes(p.page_number));
+    const maxPage = allPages.length > 0 ? Math.max(...allPages.map(p => p.page_number)) : 0;
+    const newPageNumber = maxPage + 1;
+    
+    // Add to temporary pages
+    setTempPages(prev => [...prev, { page_number: newPageNumber, canvas_data: null }]);
+    setCurrentPage(newPageNumber);
+    
+    // Clear canvas for new page
+    if (editor) {
+      setTimeout(() => {
+        editor.selectAll();
+        editor.deleteShapes(editor.getSelectedShapeIds());
+      }, 100);
+    }
+  };
+
+  const deletePage = () => {
+    if (confirm('Seite löschen?')) {
+      // Add to deleted pages if it's a saved page
+      if (pages.find(p => p.page_number === currentPage)) {
+        setDeletedPages(prev => [...prev, currentPage]);
+      }
+      
+      // Remove from temp pages if it's a temp page
+      setTempPages(prev => prev.filter(p => p.page_number !== currentPage));
+      
+      // Navigate to previous page or page 1
+      const newPage = Math.max(1, currentPage - 1);
+      setCurrentPage(newPage);
+    }
   };
 
   const getMaxPage = () => {
-    return pages.length > 0 ? Math.max(...pages.map(p => p.page_number)) : 1;
+    const allPages = [...pages, ...tempPages].filter(p => !deletedPages.includes(p.page_number));
+    return allPages.length > 0 ? Math.max(...allPages.map(p => p.page_number)) : 1;
   };
 
   return (
@@ -114,6 +229,12 @@ const BookEditor = ({ token, setToken }) => {
             style={{ marginLeft: '10px' }}
           >
             Neue Seite
+          </button>
+          <button 
+            onClick={deletePage}
+            style={{ marginLeft: '10px' }}
+          >
+            Seite löschen
           </button>
         </div>
         <button onClick={savePage}>Speichern</button>
