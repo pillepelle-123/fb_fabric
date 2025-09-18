@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { Tldraw, createTLStore, defaultShapeUtils } from 'tldraw';
+import { Tldraw } from 'tldraw';
 import 'tldraw/tldraw.css';
 import io from 'socket.io-client';
 import axios from 'axios';
@@ -9,11 +9,11 @@ import MenuBar from '../components/MenuBar';
 const BookEditor = ({ token, setToken }) => {
   const { bookId } = useParams();
   const navigate = useNavigate();
-  const [store] = useState(() => createTLStore({ shapeUtils: defaultShapeUtils }));
   const [socket, setSocket] = useState(null);
   const [currentPage, setCurrentPage] = useState(1);
   const [pages, setPages] = useState([]);
-  const [bookSettings, setBookSettings] = useState(null);
+  const [editor, setEditor] = useState(null);
+
 
   useEffect(() => {
     const newSocket = io('http://localhost:5000');
@@ -21,75 +21,21 @@ const BookEditor = ({ token, setToken }) => {
     
     newSocket.emit('joinBook', bookId);
     
-    newSocket.on('canvasUpdate', (data) => {
-      if (data.pageNumber === currentPage) {
-        store.loadSnapshot(data.canvasData);
-      }
-    });
-
-    newSocket.on('pageUpdate', (data) => {
-      if (data.pageNumber === currentPage) {
-        store.loadSnapshot(data.canvasData);
-      }
-    });
-
-    fetchBookSettings();
     fetchPages();
 
     return () => newSocket.close();
-  }, [bookId, currentPage, store]);
+  }, [bookId, currentPage]);
 
-  const fetchBookSettings = async () => {
-    try {
-      const response = await axios.get('http://localhost:5000/api/books', {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      const book = response.data.find(b => b.id === parseInt(bookId));
-      if (book) {
-        setBookSettings({ size: book.size || 'A4', orientation: book.orientation || 'portrait' });
+  useEffect(() => {
+    if (editor && pages.length > 0) {
+      const currentPageData = pages.find(p => p.page_number === currentPage);
+      if (currentPageData && currentPageData.canvas_data) {
+        editor.store.loadSnapshot(currentPageData.canvas_data);
       }
-    } catch (error) {
-      console.error('Failed to fetch book settings:', error);
     }
-  };
+  }, [editor, pages, currentPage]);
 
-  const getCanvasSize = () => {
-    if (!bookSettings) return { width: 2480, height: 3508 }; // A4 portrait default
-    
-    const sizes = {
-      A4: { width: 2480, height: 3508 },
-      A5: { width: 1748, height: 2480 },
-      square_21: { width: 2480, height: 2480 },
-      square_15: { width: 1772, height: 1772 }
-    };
-    
-    let size = sizes[bookSettings.size] || sizes.A4;
-    
-    if (bookSettings.orientation === 'landscape') {
-      return { width: size.height, height: size.width };
-    }
-    
-    return size;
-  };
 
-  const createPageFrame = (editor) => {
-    const { width, height } = getCanvasSize();
-    const margin = 118; // 10mm at 300dpi
-    
-    editor.createShape({
-      type: 'geo',
-      x: margin,
-      y: margin,
-      props: {
-        w: width - (margin * 2),
-        h: height - (margin * 2),
-        geo: 'rectangle',
-        fill: 'none',
-        color: 'black',
-        size: 's'
-      }
-    });
-  };
 
   const fetchPages = async () => {
     try {
@@ -98,22 +44,20 @@ const BookEditor = ({ token, setToken }) => {
       });
       setPages(response.data);
       
-      const currentPageData = response.data.find(p => p.page_number === currentPage);
-      if (currentPageData && currentPageData.canvas_data) {
-        console.log('Loading canvas data for page', currentPage);
-        store.loadSnapshot(currentPageData.canvas_data);
-      } else {
-        console.log('No canvas data found for page', currentPage);
-      }
+
     } catch (error) {
       console.error('Failed to fetch pages:', error);
     }
   };
 
   const savePage = async () => {
+    if (!editor) {
+      alert('Editor not ready');
+      return;
+    }
+    
     try {
-      const canvasData = store.getSnapshot();
-      console.log('Saving page', currentPage, 'with data:', canvasData);
+      const canvasData = editor.store.getSnapshot();
       
       const response = await axios.put(
         `http://localhost:5000/api/books/${bookId}/pages/${currentPage}`,
@@ -121,26 +65,23 @@ const BookEditor = ({ token, setToken }) => {
         { headers: { Authorization: `Bearer ${token}` } }
       );
       
-      console.log('Save response:', response.data);
-      
-      if (socket) {
-        socket.emit('canvasChange', {
-          bookId,
-          pageNumber: currentPage,
-          canvasData
-        });
-      }
-      
       alert('Page saved successfully!');
     } catch (error) {
-      console.error('Failed to save page:', error);
       alert('Failed to save page: ' + (error.response?.data?.error || error.message));
     }
   };
 
   const changePage = (newPage) => {
-    savePage();
     setCurrentPage(newPage);
+  };
+
+  const addNewPage = () => {
+    const maxPage = pages.length > 0 ? Math.max(...pages.map(p => p.page_number)) : 0;
+    setCurrentPage(maxPage + 1);
+  };
+
+  const getMaxPage = () => {
+    return pages.length > 0 ? Math.max(...pages.map(p => p.page_number)) : 1;
   };
 
   return (
@@ -162,24 +103,33 @@ const BookEditor = ({ token, setToken }) => {
             ← Vorherige Seite
           </button>
           <span style={{ margin: '0 20px' }}>Seite {currentPage}</span>
-          <button onClick={() => changePage(currentPage + 1)}>
+          <button 
+            onClick={() => changePage(currentPage + 1)}
+            disabled={currentPage >= getMaxPage()}
+          >
             Nächste Seite →
+          </button>
+          <button 
+            onClick={addNewPage}
+            style={{ marginLeft: '10px' }}
+          >
+            Neue Seite
           </button>
         </div>
         <button onClick={savePage}>Speichern</button>
       </div>
       
-      <div style={{ flex: 1, minHeight: 0 }}>
+      <div style={{ 
+        flex: 1, 
+        minHeight: 0,
+        transform: 'scale(1)',
+        transformOrigin: '0 0',
+        zoom: 1
+      }}>
         <Tldraw 
-          store={store}
-          onMount={(editor) => {
-            editor.updateInstanceState({ isDebugMode: false });
-            
-            // Create frame for new pages
-            const currentPageData = pages.find(p => p.page_number === currentPage);
-            if (!currentPageData && bookSettings) {
-              setTimeout(() => createPageFrame(editor), 100);
-            }
+          onMount={(editorInstance) => {
+            setEditor(editorInstance);
+            editorInstance.setCamera({ x: 0, y: 0, z: 1 });
           }}
         />
       </div>
