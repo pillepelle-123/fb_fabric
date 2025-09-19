@@ -11,7 +11,7 @@ const server = http.createServer(app);
 const corsOptions = {
   origin: [
     'http://localhost:3000',
-    'https://fb-frontend.onrender.com'
+    'https://fb-frontend-791c.onrender.com'
   ],
   credentials: true
 };
