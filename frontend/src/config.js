@@ -4,7 +4,7 @@ const config = {
     API_URL: 'http://localhost:5000'
   },
   production: {
-    API_URL: 'https://fb-backend.onrender.com'
+    API_URL: 'https://fb-backend-bvzo.onrender.com'
   }
 };
 
