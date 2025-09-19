@@ -14,7 +14,7 @@ import {
 } from '@mui/material';
 import { Login as LoginIcon, PersonAdd as PersonAddIcon } from '@mui/icons-material';
 
-const Login = ({ setToken }) => {
+const Login = ({ setToken, setUsername }) => {
   const [isLogin, setIsLogin] = useState(true);
   const [formData, setFormData] = useState({
     username: '',
@@ -34,6 +34,15 @@ const Login = ({ setToken }) => {
       
       console.log('Sending request to:', `http://localhost:5000${endpoint}`, payload);
       const response = await axios.post(`http://localhost:5000${endpoint}`, payload);
+      
+      // For login, use username from response, for register use from form
+      const username = isLogin ? response.data.username : formData.username;
+      if (!username) {
+        throw new Error('Username not received from server');
+      }
+      
+      localStorage.setItem('username', username);
+      setUsername(username);
       setToken(response.data.token);
     } catch (error) {
       console.error('Authentication error:', error.response?.data || error.message);

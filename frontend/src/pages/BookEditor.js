@@ -355,7 +355,7 @@ const BookEditor = ({ token, setToken }) => {
               variant="outlined"
               color="error"
             >
-              Löschen
+              Seite löschen
             </Button>
             <Button
               startIcon={<SaveIcon />}
@@ -363,7 +363,7 @@ const BookEditor = ({ token, setToken }) => {
               size="small"
               variant="contained"
             >
-              Speichern
+              Buch Speichern
             </Button>
           </Box>
         </Toolbar>

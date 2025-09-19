@@ -4,24 +4,24 @@ import axios from 'axios';
 import {
   Container,
   Typography,
-  Button,
   Grid,
   Card,
   CardContent,
   CardActions,
+  Button,
   Chip,
   Box,
   Fade,
 } from '@mui/material';
-import { Add as AddIcon, Settings as SettingsIcon, Archive as ArchiveIcon } from '@mui/icons-material';
+import { Delete as DeleteIcon, Unarchive as UnarchiveIcon, Add as AddIcon } from '@mui/icons-material';
 import useMediaQuery from '@mui/material/useMediaQuery';
 import { useTheme } from '@mui/material/styles';
 import AppBarComponent from '../components/AppBarComponent';
 import ConfirmDialog from '../components/ConfirmDialog';
 
-const BookMy = ({ token, setToken }) => {
+const BookArchive = ({ token, setToken }) => {
   const [books, setBooks] = useState([]);
-  const [archiveDialogOpen, setArchiveDialogOpen] = useState(false);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [selectedBook, setSelectedBook] = useState(null);
 
   const navigate = useNavigate();
@@ -36,25 +36,37 @@ const BookMy = ({ token, setToken }) => {
     try {
       const response = await axios.get('http://localhost:5000/api/books', {
         headers: { Authorization: `Bearer ${token}` },
-        params: { archived: false }
+        params: { archived: true }
       });
       setBooks(response.data);
     } catch (error) {
-      console.error('Failed to fetch books');
+      console.error('Failed to fetch archived books');
     }
   };
 
-  const handleArchive = async (book) => {
+  const handleDelete = async (book) => {
     try {
-      await axios.put(`http://localhost:5000/api/books/${book.id}`, 
-        { archived: true },
-        { headers: { Authorization: `Bearer ${token}` } }
-      );
-      fetchBooks(); // Refresh the list after archiving
-      setArchiveDialogOpen(false);
+      await axios.delete(`http://localhost:5000/api/books/${book.id}`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      fetchBooks(); // Refresh the list after deletion
+      setDeleteDialogOpen(false);
       setSelectedBook(null);
     } catch (error) {
-      console.error('Failed to archive book');
+      console.error('Failed to delete book');
+    }
+  };
+
+  const handleRestore = async (book) => {
+    try {
+      await axios.put(
+        `http://localhost:5000/api/books/${book.id}`,
+        { archived: false },
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      navigate('/book/my'); // Redirect after restore
+    } catch (error) {
+      console.error('Failed to restore book');
     }
   };
 
@@ -64,25 +76,17 @@ const BookMy = ({ token, setToken }) => {
       <Container maxWidth="lg" sx={{ mt: 4, mb: 4 }}>
         <Box sx={{ mb: 4 }}>
           <Typography variant="h4" component="h1" gutterBottom>
-            Meine Freundschaftsbücher
+            Archivierte Freundschaftsbücher
           </Typography>
           <Box sx={{ display: 'flex', gap: 2, justifyContent: 'flex-start', mb: 3 }}>
             <Button
               variant="contained"
-              startIcon={<AddIcon />}
-              onClick={() => navigate('/book/create')}
-              sx={{ mb: 0 }}
-            >
-              {!isMobile && 'Neues Buch erstellen'}
-            </Button>
-            <Button
-              variant="contained"
               color="primary"
-              startIcon={<ArchiveIcon />}
-              onClick={() => navigate('/book/archive')}
+              startIcon={<UnarchiveIcon />}
+              onClick={() => navigate('/book/my')}
               sx={{ mb: 0 }}
             >
-              {!isMobile && 'Zum Archiv'}
+              {!isMobile && 'Zu meinen Büchern'}
             </Button>
           </Box>
         </Box>
@@ -97,14 +101,12 @@ const BookMy = ({ token, setToken }) => {
                     height: '100%',
                     display: 'flex',
                     flexDirection: 'column',
-                    cursor: 'pointer',
                     transition: 'all 0.3s ease',
                     '&:hover': {
                       elevation: 8,
                       transform: 'translateY(-4px)',
                     },
                   }}
-                  onClick={() => navigate(`/book/${book.id}`)}
                 >
                   <CardContent sx={{ flexGrow: 1 }}>
                     <Typography variant="h6" component="h2" gutterBottom>
@@ -126,24 +128,24 @@ const BookMy = ({ token, setToken }) => {
                   <CardActions>
                     <Button
                       size="small"
-                      startIcon={<SettingsIcon />}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        navigate(`/book/${book.id}/settings`);
-                      }}
-                    >
-                      Einstellungen
-                    </Button>
-                    <Button
-                      size="small"
-                      startIcon={<ArchiveIcon />}
+                      startIcon={<DeleteIcon />}
                       onClick={(e) => {
                         e.stopPropagation();
                         setSelectedBook(book);
-                        setArchiveDialogOpen(true);
+                        setDeleteDialogOpen(true);
                       }}
                     >
-                      Archivieren
+                      Löschen
+                    </Button>
+                    <Button
+                      size="small"
+                      startIcon={<UnarchiveIcon />}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleRestore(book);
+                      }}
+                    >
+                      Wiederherstellen
                     </Button>
                   </CardActions>
                 </Card>
@@ -153,12 +155,12 @@ const BookMy = ({ token, setToken }) => {
         </Grid>
       </Container>
       <ConfirmDialog
-        open={archiveDialogOpen}
-        title="Buch archivieren"
-        content="Möchten Sie dieses Buch wirklich archivieren?"
-        onConfirm={() => handleArchive(selectedBook)}
+        open={deleteDialogOpen}
+        title="Buch löschen"
+        content="Möchten Sie dieses Buch wirklich löschen? Diese Aktion kann nicht rückgängig gemacht werden."
+        onConfirm={() => handleDelete(selectedBook)}
         onCancel={() => {
-          setArchiveDialogOpen(false);
+          setDeleteDialogOpen(false);
           setSelectedBook(null);
         }}
       />
@@ -166,4 +168,4 @@ const BookMy = ({ token, setToken }) => {
   );
 };
 
-export default BookMy;
+export default BookArchive;

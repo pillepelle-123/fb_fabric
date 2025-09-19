@@ -1,9 +1,9 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
-import MenuBar from '../components/MenuBar';
+import AppBarComponent from '../components/AppBarComponent';
 
-const CreateBook = ({ token, setToken }) => {
+const CreateBook = ({ token, setToken, username }) => {
   const navigate = useNavigate();
   const [formData, setFormData] = useState({
     title: '',
@@ -33,7 +33,7 @@ const CreateBook = ({ token, setToken }) => {
 
   return (
     <div>
-      <MenuBar setToken={setToken} />
+      <AppBarComponent setToken={setToken} username={username} />
       <div style={{ padding: '20px', maxWidth: '600px' }}>
         <h1>Neues Freundschaftsbuch erstellen</h1>
         

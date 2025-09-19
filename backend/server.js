@@ -33,7 +33,7 @@ app.post('/api/register', async (req, res) => {
     
     const token = generateToken(result.rows[0].id);
     console.log('Registration successful for user:', result.rows[0].id);
-    res.json({ token, userId: result.rows[0].id });
+    res.json({ token, userId: result.rows[0].id, username });
   } catch (err) {
     console.error('Registration error:', err);
     res.status(400).json({ error: 'Registration failed: ' + err.message });
@@ -43,7 +43,7 @@ app.post('/api/register', async (req, res) => {
 app.post('/api/login', async (req, res) => {
   try {
     const { email, password } = req.body;
-    const result = await pool.query('SELECT * FROM public.users WHERE email = $1', [email]);
+    const result = await pool.query('SELECT id, username, password_hash FROM public.users WHERE email = $1', [email]);
     
     if (result.rows.length === 0) {
       return res.status(401).json({ error: 'Invalid credentials' });
@@ -63,14 +63,105 @@ app.post('/api/login', async (req, res) => {
   }
 });
 
+// Get current user info
+app.get('/api/me', verifyToken, async (req, res) => {
+  try {
+    const result = await pool.query('SELECT id, username, email, created_at FROM public.users WHERE id = $1', [req.userId]);
+    
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+    
+    res.json(result.rows[0]);
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to fetch user information' });
+  }
+});
+
+// Check if username is available
+app.get('/api/users/check-username/:username', async (req, res) => {
+  try {
+    const { username } = req.params;
+    const result = await pool.query(
+      'SELECT id FROM public.users WHERE username = $1',
+      [username]
+    );
+    res.json({ available: result.rows.length === 0 });
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to check username availability' });
+  }
+});
+
+// Update username
+app.put('/api/me/username', verifyToken, async (req, res) => {
+  try {
+    const { username } = req.body;
+    
+    // Check if username is already taken
+    const existingUser = await pool.query(
+      'SELECT id FROM public.users WHERE username = $1 AND id != $2',
+      [username, req.userId]
+    );
+    
+    if (existingUser.rows.length > 0) {
+      return res.status(400).json({ error: 'Username is already taken' });
+    }
+    
+    await pool.query(
+      'UPDATE public.users SET username = $1 WHERE id = $2',
+      [username, req.userId]
+    );
+    
+    res.json({ message: 'Username updated successfully' });
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to update username' });
+  }
+});
+
+// Update password
+app.put('/api/me/password', verifyToken, async (req, res) => {
+  try {
+    const { currentPassword, newPassword } = req.body;
+    
+    // Verify current password
+    const user = await pool.query(
+      'SELECT password_hash FROM public.users WHERE id = $1',
+      [req.userId]
+    );
+    
+    if (!user.rows.length) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+    
+    const validPassword = await bcrypt.compare(currentPassword, user.rows[0].password_hash);
+    if (!validPassword) {
+      return res.status(400).json({ error: 'Current password is incorrect' });
+    }
+    
+    // Update password
+    const hashedPassword = await bcrypt.hash(newPassword, 10);
+    await pool.query(
+      'UPDATE public.users SET password_hash = $1 WHERE id = $2',
+      [hashedPassword, req.userId]
+    );
+    
+    res.json({ message: 'Password updated successfully' });
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to update password' });
+  }
+});
+
 // Book routes
 app.get('/api/books', verifyToken, async (req, res) => {
   try {
+    const { archived } = req.query;
+    const archivedFilter = archived === 'true' ? true : false;
+
     const result = await pool.query(`
       SELECT b.*, bp.role FROM public.books b
       JOIN public.book_permissions bp ON b.id = bp.book_id
-      WHERE bp.user_id = $1
-    `, [req.userId]);
+      WHERE bp.user_id = $1 AND b.archived = $2
+    `, [req.userId, archivedFilter]);
     res.json(result.rows);
   } catch (err) {
     res.status(500).json({ error: 'Failed to fetch books' });
@@ -154,20 +245,68 @@ app.post('/api/books', verifyToken, async (req, res) => {
   }
 });
 
+app.put('/api/books/:bookId', verifyToken, checkPermission('admin'), async (req, res) => {
+  try {
+    const { archived } = req.body;
+    const { bookId } = req.params;
+
+    await pool.query(
+      'UPDATE public.books SET archived = $1 WHERE id = $2',
+      [archived, bookId]
+    );
+
+    res.json({ success: true });
+  } catch (err) {
+    console.error('Failed to update book:', err);
+    res.status(500).json({ error: 'Failed to update book' });
+  }
+});
+
+// Update book settings
 app.put('/api/books/:bookId/settings', verifyToken, checkPermission('admin'), async (req, res) => {
   try {
+    const { title, description, size, orientation } = req.body;
     const { bookId } = req.params;
-    const { size, orientation } = req.body;
     
-    const result = await pool.query(
-      'UPDATE public.books SET size = $1, orientation = $2 WHERE id = $3 RETURNING *',
-      [size, orientation, bookId]
+    await pool.query(
+      'UPDATE public.books SET title = $1, description = $2, size = $3, orientation = $4, last_saved_at = NOW() WHERE id = $5',
+      [title, description, size, orientation, bookId]
     );
     
-    res.json(result.rows[0]);
+    res.json({ success: true });
   } catch (err) {
-    console.error('Settings update error:', err);
-    res.status(500).json({ error: 'Failed to update settings: ' + err.message });
+    console.error('Failed to update book settings:', err);
+    res.status(500).json({ error: 'Failed to update book settings' });
+  }
+});
+
+// Delete an entire book and all its pages
+app.delete('/api/books/:bookId', verifyToken, checkPermission('admin'), async (req, res) => {
+  try {
+    const { bookId } = req.params;
+
+    // First delete all pages of the book
+    await pool.query(
+      'DELETE FROM public.pages WHERE book_id = $1',
+      [bookId]
+    );
+
+    // Then delete all book permissions
+    await pool.query(
+      'DELETE FROM public.book_permissions WHERE book_id = $1',
+      [bookId]
+    );
+
+    // Finally delete the book itself
+    await pool.query(
+      'DELETE FROM public.books WHERE id = $1',
+      [bookId]
+    );
+
+    res.json({ success: true });
+  } catch (err) {
+    console.error('Failed to delete book:', err);
+    res.status(500).json({ error: 'Failed to delete book' });
   }
 });
 

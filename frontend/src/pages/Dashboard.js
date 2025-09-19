@@ -28,7 +28,7 @@ import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import AppBarComponent from '../components/AppBarComponent';
 
-const Dashboard = ({ token, setToken }) => {
+const Dashboard = ({ token, setToken, username }) => {
   const navigate = useNavigate();
   const [userStats, setUserStats] = useState({
     username: '',
@@ -65,10 +65,15 @@ const Dashboard = ({ token, setToken }) => {
 
   const fetchUserStats = async () => {
     try {
-      // Fetch user info and books
-      const booksResponse = await axios.get('http://localhost:5000/api/books', {
-        headers: { Authorization: `Bearer ${token}` }
-      });
+      // Fetch user info and books in parallel
+      const [userResponse, booksResponse] = await Promise.all([
+        axios.get('http://localhost:5000/api/me', {
+          headers: { Authorization: `Bearer ${token}` }
+        }),
+        axios.get('http://localhost:5000/api/books', {
+          headers: { Authorization: `Bearer ${token}` }
+        })
+      ]);
       
       const books = booksResponse.data;
       const ownedBooks = books.filter(book => book.role === 'admin').length;
@@ -95,7 +100,7 @@ const Dashboard = ({ token, setToken }) => {
       }
       
       setUserStats({
-        username: 'Benutzer', // Placeholder - would need user endpoint
+        username: userResponse.data.username,
         totalBooks,
         ownedBooks,
         involvedBooks,
@@ -126,7 +131,7 @@ const Dashboard = ({ token, setToken }) => {
 
   return (
     <>
-      <AppBarComponent setToken={setToken} />
+      <AppBarComponent setToken={setToken} username={username} />
       <Container maxWidth="lg" sx={{ mt: 4, mb: 4, px: { xs: 1, sm: 2, md: 3 } }}>
         {/* Welcome Header */}
         <Typography variant="h4" component="h1" gutterBottom sx={{ mb: 4 }}>
@@ -162,7 +167,7 @@ const Dashboard = ({ token, setToken }) => {
                   Meine Bücher
                 </Typography>
                 <Box sx={{ textAlign: 'center', py: 2 }}>
-                  <Typography variant="h2" component="div" color="primary" sx={{ fontWeight: 'bold' }}>
+                  <Typography variant="h3" component="div" color="secondary.main">
                     {userStats.totalBooks}
                   </Typography>
                   <Typography variant="body2" color="text.secondary" gutterBottom>
@@ -178,7 +183,7 @@ const Dashboard = ({ token, setToken }) => {
                       </Typography>
                     </Box>
                     <Box>
-                      <Typography variant="h5" color="info.main">
+                      <Typography variant="h5" color="primary.main">
                         {userStats.involvedBooks}
                       </Typography>
                       <Typography variant="caption" color="text.secondary">
@@ -229,7 +234,16 @@ const Dashboard = ({ token, setToken }) => {
                         <ListItem 
                           button 
                           onClick={() => navigate(`/book/${book.id}`)}
-                          sx={{ borderRadius: 1, mb: 1 }}
+                          sx={{ 
+                            borderRadius: 1, 
+                            mb: 1,
+                            '&:hover': {
+                              backgroundColor: 'action.hover',
+                              transform: 'translateX(4px)',
+                              transition: 'transform 0.2s ease-in-out',
+                              cursor: 'pointer'
+                            }
+                          }}
                         >
                           <ListItemIcon>
                             <BookIcon color="primary" />
