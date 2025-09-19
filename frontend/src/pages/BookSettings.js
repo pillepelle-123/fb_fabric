@@ -4,6 +4,7 @@ import axios from 'axios';
 import {
   Container,
   Typography,
+  TextField,
   FormControl,
   InputLabel,
   Select,
@@ -24,6 +25,8 @@ const BookSettings = ({ token, setToken }) => {
   const navigate = useNavigate();
   const [book, setBook] = useState(null);
   const [settings, setSettings] = useState({
+    title: '',
+    description: '',
     size: 'A4',
     orientation: 'portrait'
   });
@@ -48,6 +51,8 @@ const BookSettings = ({ token, setToken }) => {
       if (currentBook) {
         setBook(currentBook);
         setSettings({
+          title: currentBook.title || '',
+          description: currentBook.description || '',
           size: currentBook.size || 'A4',
           orientation: currentBook.orientation || 'portrait'
         });
@@ -92,6 +97,25 @@ const BookSettings = ({ token, setToken }) => {
             </Typography>
             
             <Box component="form" onSubmit={saveSettings} sx={{ mt: 3 }}>
+              <TextField
+                fullWidth
+                label="Titel"
+                value={settings.title}
+                onChange={(e) => setSettings({...settings, title: e.target.value})}
+                required
+                sx={{ mb: 3 }}
+              />
+
+              <TextField
+                fullWidth
+                label="Beschreibung"
+                multiline
+                rows={3}
+                value={settings.description}
+                onChange={(e) => setSettings({...settings, description: e.target.value})}
+                sx={{ mb: 3 }}
+              />
+
               <FormControl fullWidth sx={{ mb: 3 }}>
                 <InputLabel>Größe</InputLabel>
                 <Select

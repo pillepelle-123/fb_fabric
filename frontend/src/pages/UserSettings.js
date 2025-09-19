@@ -18,6 +18,7 @@ import {
 } from '@mui/icons-material';
 import axios from 'axios';
 import AppBarComponent from '../components/AppBarComponent';
+import ConfirmDialog from '../components/ConfirmDialog';
 
 const UserSettings = ({ token, setToken }) => {
   const [userInfo, setUserInfo] = useState({
@@ -36,6 +37,7 @@ const UserSettings = ({ token, setToken }) => {
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [usernameAvailable, setUsernameAvailable] = useState(true);
+  const [confirmDialogOpen, setConfirmDialogOpen] = useState(false);
 
   useEffect(() => {
     fetchUserInfo();
@@ -82,7 +84,7 @@ const UserSettings = ({ token, setToken }) => {
     setSuccess('');
   };
 
-  const updateUsername = async () => {
+  const handleSaveUsername = () => {
     if (!formData.newUsername) {
       setError('Benutzername darf nicht leer sein');
       return;
@@ -93,6 +95,10 @@ const UserSettings = ({ token, setToken }) => {
       return;
     }
 
+    setConfirmDialogOpen(true);
+  };
+
+  const updateUsername = async () => {
     setLoading(true);
     try {
       await axios.put('http://localhost:5000/api/me/username', 
@@ -100,6 +106,7 @@ const UserSettings = ({ token, setToken }) => {
         { headers: { Authorization: `Bearer ${token}` } }
       );
       setSuccess('Benutzername erfolgreich aktualisiert');
+      setConfirmDialogOpen(false);
       fetchUserInfo();
     } catch (error) {
       setError(error.response?.data?.error || 'Failed to update username');
@@ -183,8 +190,8 @@ const UserSettings = ({ token, setToken }) => {
               />
               <Button
                 variant="contained"
-                onClick={updateUsername}
-                disabled={loading || !usernameAvailable}
+                onClick={handleSaveUsername}
+                disabled={loading || !usernameAvailable || formData.newUsername === userInfo.username || !formData.newUsername}
                 startIcon={loading ? <CircularProgress size={20} /> : <SaveIcon />}
               >
                 Speichern
@@ -192,6 +199,14 @@ const UserSettings = ({ token, setToken }) => {
             </Box>
           </CardContent>
         </Card>
+
+        <ConfirmDialog
+          open={confirmDialogOpen}
+          title="Benutzernamen ändern"
+          message={`Möchten Sie den Benutzernamen von "${userInfo.username}" zu "${formData.newUsername}" ändern?`}
+          onConfirm={updateUsername}
+          onCancel={() => setConfirmDialogOpen(false)}
+        />
 
         {/* Password Settings */}
         <Card elevation={3}>
