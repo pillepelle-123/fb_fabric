@@ -23,6 +23,34 @@ const io = socketIo(server, {
 app.use(cors(corsOptions));
 app.use(express.json());
 
+// Basic Auth middleware (only in production)
+const basicAuth = (req, res, next) => {
+  // Skip basic auth in development
+  if (process.env.NODE_ENV !== 'production' || !process.env.SITE_USERNAME || !process.env.SITE_PASSWORD) {
+    return next();
+  }
+  
+  const auth = req.headers.authorization;
+  if (!auth || !auth.startsWith('Basic ')) {
+    res.setHeader('WWW-Authenticate', 'Basic realm="Protected"');
+    return res.status(401).send('Authentication required');
+  }
+  
+  const credentials = Buffer.from(auth.slice(6), 'base64').toString().split(':');
+  const username = credentials[0];
+  const password = credentials[1];
+  
+  if (username === process.env.SITE_USERNAME && password === process.env.SITE_PASSWORD) {
+    next();
+  } else {
+    res.setHeader('WWW-Authenticate', 'Basic realm="Protected"');
+    res.status(401).send('Invalid credentials');
+  }
+};
+
+// Apply basic auth to all routes
+app.use(basicAuth);
+
 // Auth routes
 app.post('/api/register', async (req, res) => {
   try {
