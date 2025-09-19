@@ -46,7 +46,8 @@ const initDB = async () => {
       ALTER TABLE books 
       ADD COLUMN IF NOT EXISTS size VARCHAR(20) DEFAULT 'A4',
       ADD COLUMN IF NOT EXISTS orientation VARCHAR(20) DEFAULT 'portrait',
-      ADD COLUMN IF NOT EXISTS last_saved_at TIMESTAMP
+      ADD COLUMN IF NOT EXISTS last_saved_at TIMESTAMP,
+      ADD COLUMN IF NOT EXISTS archived BOOLEAN DEFAULT FALSE
     `);
 
     await pool.query(`
