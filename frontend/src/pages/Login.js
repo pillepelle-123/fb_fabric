@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import axios from 'axios';
+import { API_URL } from '../config';
 import {
   Container,
   Paper,
@@ -32,8 +33,8 @@ const Login = ({ setToken, setUsername }) => {
         ? { email: formData.email, password: formData.password }
         : { username: formData.username, email: formData.email, password: formData.password };
       
-      console.log('Sending request to:', `http://localhost:5000${endpoint}`, payload);
-      const response = await axios.post(`http://localhost:5000${endpoint}`, payload);
+      console.log('Sending request to:', `${API_URL}${endpoint}`, payload);
+      const response = await axios.post(`${API_URL}${endpoint}`, payload);
       
       // For login, use username from response, for register use from form
       const username = isLogin ? response.data.username : formData.username;

@@ -7,11 +7,20 @@ const { generateToken, verifyToken, checkPermission, bcrypt } = require('./auth'
 
 const app = express();
 const server = http.createServer(app);
+// CORS configuration for both development and production
+const corsOptions = {
+  origin: [
+    'http://localhost:3000',
+    'https://fb-frontend.onrender.com'
+  ],
+  credentials: true
+};
+
 const io = socketIo(server, {
-  cors: { origin: "http://localhost:3000", methods: ["GET", "POST"] }
+  cors: corsOptions
 });
 
-app.use(cors());
+app.use(cors(corsOptions));
 app.use(express.json());
 
 // Auth routes

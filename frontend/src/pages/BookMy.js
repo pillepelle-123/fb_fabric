@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
+import { API_URL } from '../config';
 import {
   Container,
   Typography,
@@ -34,7 +35,7 @@ const BookMy = ({ token, setToken }) => {
 
   const fetchBooks = async () => {
     try {
-      const response = await axios.get('http://localhost:5000/api/books', {
+      const response = await axios.get(`${API_URL}/api/books`, {
         headers: { Authorization: `Bearer ${token}` },
         params: { archived: false }
       });
@@ -46,7 +47,7 @@ const BookMy = ({ token, setToken }) => {
 
   const handleArchive = async (book) => {
     try {
-      await axios.put(`http://localhost:5000/api/books/${book.id}`, 
+      await axios.put(`${API_URL}/api/books/${book.id}`, 
         { archived: true },
         { headers: { Authorization: `Bearer ${token}` } }
       );

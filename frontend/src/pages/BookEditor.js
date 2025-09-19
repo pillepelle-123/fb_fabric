@@ -4,6 +4,7 @@ import { Tldraw } from 'tldraw';
 import 'tldraw/tldraw.css';
 import io from 'socket.io-client';
 import axios from 'axios';
+import { API_URL } from '../config';
 import {
   AppBar,
   Toolbar,
@@ -43,7 +44,7 @@ const BookEditor = ({ token, setToken }) => {
 
 
   useEffect(() => {
-    const newSocket = io('http://localhost:5000');
+    const newSocket = io(API_URL);
     setSocket(newSocket);
     
     newSocket.emit('joinBook', bookId);
@@ -82,7 +83,7 @@ const BookEditor = ({ token, setToken }) => {
 
   const fetchPages = async () => {
     try {
-      const response = await axios.get(`http://localhost:5000/api/books/${bookId}/pages`, {
+      const response = await axios.get(`${API_URL}/api/books/${bookId}/pages`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       setPages(response.data);
@@ -97,7 +98,7 @@ const BookEditor = ({ token, setToken }) => {
   useEffect(() => {
     const fetchBookTitle = async () => {
       try {
-        const response = await axios.get('http://localhost:5000/api/books', {
+        const response = await axios.get(`${API_URL}/api/books`, {
           headers: { Authorization: `Bearer ${token}` }
         });
         const book = response.data.find(b => b.id === parseInt(bookId));
@@ -148,14 +149,14 @@ const BookEditor = ({ token, setToken }) => {
       
       // Delete all existing pages
       await axios.delete(
-        `http://localhost:5000/api/books/${bookId}/pages/all`,
+        `${API_URL}/api/books/${bookId}/pages/all`,
         { headers: { Authorization: `Bearer ${token}` } }
       );
       
       // Save pages with sequential numbering (1, 2, 3...)
       for (let i = 0; i < allPagesToSave.length; i++) {
         await axios.put(
-          `http://localhost:5000/api/books/${bookId}/pages/${i + 1}`,
+          `${API_URL}/api/books/${bookId}/pages/${i + 1}`,
           { canvasData: allPagesToSave[i].canvas_data },
           { headers: { Authorization: `Bearer ${token}` } }
         );

@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import axios from 'axios';
+import { API_URL } from '../config';
 import {
   Container,
   Typography,
@@ -44,7 +45,7 @@ const BookSettings = ({ token, setToken }) => {
 
   const fetchBook = async () => {
     try {
-      const response = await axios.get('http://localhost:5000/api/books', {
+      const response = await axios.get(`${API_URL}/api/books`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       const currentBook = response.data.find(b => b.id === parseInt(bookId));
@@ -66,7 +67,7 @@ const BookSettings = ({ token, setToken }) => {
     e.preventDefault();
     try {
       await axios.put(
-        `http://localhost:5000/api/books/${bookId}/settings`,
+        `${API_URL}/api/books/${bookId}/settings`,
         settings,
         { headers: { Authorization: `Bearer ${token}` } }
       );

@@ -26,6 +26,7 @@ import {
 } from '@mui/icons-material';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
+import { API_URL } from '../config';
 import AppBarComponent from '../components/AppBarComponent';
 
 const Dashboard = ({ token, setToken, username }) => {
@@ -67,10 +68,10 @@ const Dashboard = ({ token, setToken, username }) => {
     try {
       // Fetch user info and books in parallel
       const [userResponse, booksResponse] = await Promise.all([
-        axios.get('http://localhost:5000/api/me', {
+        axios.get(`${API_URL}/api/me`, {
           headers: { Authorization: `Bearer ${token}` }
         }),
-        axios.get('http://localhost:5000/api/books', {
+        axios.get(`${API_URL}/api/books`, {
           headers: { Authorization: `Bearer ${token}` }
         })
       ]);
@@ -90,7 +91,7 @@ const Dashboard = ({ token, setToken, username }) => {
       let totalPages = 0;
       for (const book of books) {
         try {
-          const pagesResponse = await axios.get(`http://localhost:5000/api/books/${book.id}/pages`, {
+          const pagesResponse = await axios.get(`${API_URL}/api/books/${book.id}/pages`, {
             headers: { Authorization: `Bearer ${token}` }
           });
           totalPages += pagesResponse.data.length;

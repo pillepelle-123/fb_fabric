@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
+import { API_URL } from '../config';
 import {
   Container,
   Typography,
@@ -38,7 +39,7 @@ const BookCreate = ({ token, setToken }) => {
   const createBook = async (e) => {
     e.preventDefault();
     try {
-      await axios.post('http://localhost:5000/api/books', formData, {
+      await axios.post(`${API_URL}/api/books`, formData, {
         headers: { Authorization: `Bearer ${token}` }
       });
       navigate('/book/my');

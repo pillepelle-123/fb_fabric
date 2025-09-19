@@ -17,6 +17,7 @@ import {
   Key as KeyIcon,
 } from '@mui/icons-material';
 import axios from 'axios';
+import { API_URL } from '../config';
 import AppBarComponent from '../components/AppBarComponent';
 import ConfirmDialog from '../components/ConfirmDialog';
 
@@ -45,7 +46,7 @@ const UserSettings = ({ token, setToken }) => {
 
   const fetchUserInfo = async () => {
     try {
-      const response = await axios.get('http://localhost:5000/api/me', {
+      const response = await axios.get(`${API_URL}/api/me`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       setUserInfo(response.data);
@@ -61,7 +62,7 @@ const UserSettings = ({ token, setToken }) => {
       if (formData.newUsername && formData.newUsername !== userInfo.username) {
         try {
           const response = await axios.get(
-            `http://localhost:5000/api/users/check-username/${formData.newUsername}`
+            `${API_URL}/api/users/check-username/${formData.newUsername}`
           );
           setUsernameAvailable(response.data.available);
         } catch (error) {
@@ -101,7 +102,7 @@ const UserSettings = ({ token, setToken }) => {
   const updateUsername = async () => {
     setLoading(true);
     try {
-      await axios.put('http://localhost:5000/api/me/username', 
+      await axios.put(`${API_URL}/api/me/username`, 
         { username: formData.newUsername },
         { headers: { Authorization: `Bearer ${token}` } }
       );
@@ -132,7 +133,7 @@ const UserSettings = ({ token, setToken }) => {
 
     setLoading(true);
     try {
-      await axios.put('http://localhost:5000/api/me/password', 
+      await axios.put(`${API_URL}/api/me/password`, 
         { 
           currentPassword: formData.currentPassword,
           newPassword: formData.newPassword

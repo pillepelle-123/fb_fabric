@@ -23,6 +23,7 @@ import {
 } from '@mui/icons-material';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
+import { API_URL } from '../config';
 import AppBarComponent from '../components/AppBarComponent';
 
 const UserProfile = ({ token, setToken }) => {
@@ -42,10 +43,10 @@ const UserProfile = ({ token, setToken }) => {
   const fetchUserInfo = async () => {
     try {
       const [userResponse, booksResponse] = await Promise.all([
-        axios.get('http://localhost:5000/api/me', {
+        axios.get(`${API_URL}/api/me`, {
           headers: { Authorization: `Bearer ${token}` }
         }),
-        axios.get('http://localhost:5000/api/books', {
+        axios.get(`${API_URL}/api/books`, {
           headers: { Authorization: `Bearer ${token}` }
         })
       ]);

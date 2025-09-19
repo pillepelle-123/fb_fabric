@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
+import { API_URL } from '../config';
 import {
   Container,
   Typography,
@@ -34,7 +35,7 @@ const BookArchive = ({ token, setToken }) => {
 
   const fetchBooks = async () => {
     try {
-      const response = await axios.get('http://localhost:5000/api/books', {
+      const response = await axios.get(`${API_URL}/api/books`, {
         headers: { Authorization: `Bearer ${token}` },
         params: { archived: true }
       });
@@ -46,7 +47,7 @@ const BookArchive = ({ token, setToken }) => {
 
   const handleDelete = async (book) => {
     try {
-      await axios.delete(`http://localhost:5000/api/books/${book.id}`, {
+      await axios.delete(`${API_URL}/api/books/${book.id}`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       fetchBooks(); // Refresh the list after deletion
@@ -60,7 +61,7 @@ const BookArchive = ({ token, setToken }) => {
   const handleRestore = async (book) => {
     try {
       await axios.put(
-        `http://localhost:5000/api/books/${book.id}`,
+        `${API_URL}/api/books/${book.id}`,
         { archived: false },
         { headers: { Authorization: `Bearer ${token}` } }
       );
