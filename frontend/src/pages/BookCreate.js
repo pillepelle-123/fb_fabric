@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
-import { API_URL } from '../config';
+import { API_URL, PAGE_SIZES } from '../config';
 import {
   Container,
   Typography,
@@ -29,17 +29,18 @@ const BookCreate = ({ token, setToken }) => {
     orientation: 'portrait'
   });
 
-  const sizeOptions = [
-    { value: 'A4', label: 'A4 (21.0 x 29.7 cm)' },
-    { value: 'A5', label: 'A5 (14.8 x 21.0 cm)' },
-    { value: 'square_21', label: 'Quadrat 21x21 cm' },
-    { value: 'square_15', label: 'Quadrat 15x15 cm' }
-  ];
+  const sizeOptions = Object.entries(PAGE_SIZES).map(([key, size]) => ({
+    value: key,
+    label: size.name
+  }));
 
   const createBook = async (e) => {
     e.preventDefault();
     try {
-      await axios.post(`${API_URL}/api/books`, formData, {
+      await axios.post(`${API_URL}/api/books`, {
+        ...formData,
+        page_size: formData.size
+      }, {
         headers: { Authorization: `Bearer ${token}` }
       });
       navigate('/book/my');
@@ -79,10 +80,10 @@ const BookCreate = ({ token, setToken }) => {
               />
 
               <FormControl fullWidth sx={{ mb: 3 }}>
-                <InputLabel>Größe</InputLabel>
+                <InputLabel>Seitengröße</InputLabel>
                 <Select
                   value={formData.size}
-                  label="Größe"
+                  label="Seitengröße"
                   onChange={(e) => setFormData({...formData, size: e.target.value})}
                 >
                   {sizeOptions.map(option => (

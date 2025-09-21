@@ -1,24 +1,22 @@
 import React, { useEffect, useRef } from 'react';
 import { Tldraw, createShapeId } from 'tldraw';
+import { getPageDimensions } from '../config';
 
-const CANVAS_WIDTH = 2678;
-const CANVAS_HEIGHT = 3789;
-const PAGE_WIDTH = 2480;
-const PAGE_HEIGHT = 3508;
-
-const BoundedCanvas = ({ onMount, fitToView = false, ...props }) => {
+const BoundedCanvas = ({ onMount, fitToView = false, pageSize = 'A4', orientation = 'portrait', ...props }) => {
+  const { canvasWidth, canvasHeight, pageWidth, pageHeight } = getPageDimensions(pageSize, orientation);
   const editorRef = useRef(null);
   const hasInitialized = useRef(false);
 
   const fitCanvasToView = () => {
     if (!editorRef.current) return;
     
+    const { canvasWidth: currentCanvasWidth, canvasHeight: currentCanvasHeight } = getPageDimensions(pageSize, orientation);
     editorRef.current.zoomToFit({
       targetBounds: {
-        x: -CANVAS_WIDTH / 2,
-        y: -CANVAS_HEIGHT / 2,
-        w: CANVAS_WIDTH,
-        h: CANVAS_HEIGHT
+        x: -currentCanvasWidth / 2,
+        y: -currentCanvasHeight / 2,
+        w: currentCanvasWidth,
+        h: currentCanvasHeight
       },
       inset: 20,
       animation: { duration: 0 }
@@ -31,6 +29,24 @@ const BoundedCanvas = ({ onMount, fitToView = false, ...props }) => {
     // Enable dynamic size preference
     editor.user.updateUserPreferences({ isDynamicSizeMode: true });
     
+    // Block all interactions outside canvas boundary
+    const originalHandleEvent = editor.root.handleEvent;
+    editor.root.handleEvent = (info) => {
+      if (info.type === 'pointer') {
+        const point = editor.screenToPage({ x: info.point.x, y: info.point.y });
+        const isOutside = 
+          point.x < -canvasWidth / 2 || 
+          point.x > canvasWidth / 2 || 
+          point.y < -canvasHeight / 2 || 
+          point.y > canvasHeight / 2;
+        
+        if (isOutside) {
+          return; // Block all pointer events outside canvas
+        }
+      }
+      return originalHandleEvent.call(editor.root, info);
+    };
+    
     // Create boundary shapes
     setTimeout(() => {
       const canvasBoundaryId = createShapeId('canvas-boundary');
@@ -39,11 +55,11 @@ const BoundedCanvas = ({ onMount, fitToView = false, ...props }) => {
       editor.createShape({
         id: canvasBoundaryId,
         type: 'geo',
-        x: -CANVAS_WIDTH / 2,
-        y: -CANVAS_HEIGHT / 2,
+        x: -canvasWidth / 2,
+        y: -canvasHeight / 2,
         props: {
-          w: CANVAS_WIDTH,
-          h: CANVAS_HEIGHT,
+          w: canvasWidth,
+          h: canvasHeight,
           geo: 'rectangle',
           fill: 'none',
           color: 'grey',
@@ -55,11 +71,11 @@ const BoundedCanvas = ({ onMount, fitToView = false, ...props }) => {
       editor.createShape({
         id: pageBoundaryId,
         type: 'geo',
-        x: -PAGE_WIDTH / 2,
-        y: -PAGE_HEIGHT / 2,
+        x: -pageWidth / 2,
+        y: -pageHeight / 2,
         props: {
-          w: PAGE_WIDTH,
-          h: PAGE_HEIGHT,
+          w: pageWidth,
+          h: pageHeight,
           geo: 'rectangle',
           fill: 'none',
           color: 'black',
@@ -92,10 +108,10 @@ const BoundedCanvas = ({ onMount, fitToView = false, ...props }) => {
       try {
         const point = editorRef.current.screenToPage({ x: e.clientX, y: e.clientY });
         const isOutsideCanvas = 
-          point.x < -CANVAS_WIDTH / 2 || 
-          point.x > CANVAS_WIDTH / 2 || 
-          point.y < -CANVAS_HEIGHT / 2 || 
-          point.y > CANVAS_HEIGHT / 2;
+          point.x < -canvasWidth / 2 || 
+          point.x > canvasWidth / 2 || 
+          point.y < -canvasHeight / 2 || 
+          point.y > canvasHeight / 2;
         
         const canvas = document.querySelector('.tl-canvas');
         if (canvas) {
@@ -113,18 +129,19 @@ const BoundedCanvas = ({ onMount, fitToView = false, ...props }) => {
   }, []);
 
   return (
-    <div style={{ position: 'relative', width: '100%', height: '100%' }}>
+    <div style={{ position: 'relative', width: '100%', height: '100%', overflow: 'hidden' }}>
       <Tldraw onMount={handleMount} {...props} />
       <div
         style={{
           position: 'absolute',
-          top: 0,
-          left: 0,
-          right: 0,
-          bottom: 0,
+          top: '50%',
+          left: '50%',
+          width: canvasWidth,
+          height: canvasHeight,
+          transform: 'translate(-50%, -50%)',
           pointerEvents: 'none',
-          background: 'radial-gradient(ellipse at center, transparent 40%, rgba(200, 200, 200, 0.3) 70%)',
-          zIndex: 1000
+          zIndex: 1000,
+          boxShadow: `0 0 0 9999px rgba(200, 200, 200, 0.6)`
         }}
       />
     </div>

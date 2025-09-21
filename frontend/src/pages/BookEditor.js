@@ -42,6 +42,9 @@ const BookEditor = ({ token, setToken }) => {
   const [confirmDialog, setConfirmDialog] = useState({ open: false, onConfirm: null });
   const [bookTitle, setBookTitle] = useState('');
   const [pageMenuAnchor, setPageMenuAnchor] = useState(null);
+  const [bookPageSize, setBookPageSize] = useState('A4');
+  const [bookOrientation, setBookOrientation] = useState('portrait');
+  const [bookDataLoaded, setBookDataLoaded] = useState(false);
 
 
   useEffect(() => {
@@ -73,12 +76,12 @@ const BookEditor = ({ token, setToken }) => {
       // First check temp pages for any changes
       const tempPageData = tempPages.find(p => p.page_number === currentPage);
       
-      if (tempPageData && tempPageData.canvas_data && typeof tempPageData.canvas_data === 'object') {
+      if (tempPageData && tempPageData.canvas_data && typeof tempPageData.canvas_data === 'object' && tempPageData.canvas_data.schema) {
         editor.store.loadSnapshot(tempPageData.canvas_data);
       } else {
         // Then check saved pages
         const savedPageData = pages.find(p => p.page_number === currentPage);
-        if (savedPageData && savedPageData.canvas_data && typeof savedPageData.canvas_data === 'object') {
+        if (savedPageData && savedPageData.canvas_data && typeof savedPageData.canvas_data === 'object' && savedPageData.canvas_data.schema) {
           editor.store.loadSnapshot(savedPageData.canvas_data);
         } else if (tempPageData && tempPageData.canvas_data === null) {
           // Only clear canvas for new temp pages that were just created
@@ -116,6 +119,9 @@ const BookEditor = ({ token, setToken }) => {
         const book = response.data.find(b => b.id === parseInt(bookId));
         if (book) {
           setBookTitle(book.title);
+          setBookPageSize(book.page_size || 'A4');
+          setBookOrientation(book.orientation || 'portrait');
+          setBookDataLoaded(true);
         }
       } catch (error) {
         console.error('Failed to fetch book title:', error);
@@ -292,6 +298,13 @@ const BookEditor = ({ token, setToken }) => {
     return allPages.length > 0 ? Math.max(...allPages.map(p => p.page_number)) : 1;
   };
 
+  // Auto-create first page if book has no pages
+  useEffect(() => {
+    if (pages.length === 0 && tempPages.length === 0 && editor && bookDataLoaded) {
+      addNewPage();
+    }
+  }, [pages, tempPages, editor, bookDataLoaded]);
+
   return (
     <Box sx={{ height: '100vh', display: 'flex', flexDirection: 'column' }}>
       <AppBarComponent setToken={setToken} />
@@ -397,11 +410,15 @@ const BookEditor = ({ token, setToken }) => {
         flex: 1, 
         minHeight: 0
       }}>
-        <BoundedCanvas 
-          onMount={(editor) => {
-            setEditor(editor);
-          }}
-        />
+        {bookDataLoaded && (
+          <BoundedCanvas 
+            onMount={(editor) => {
+              setEditor(editor);
+            }}
+            pageSize={bookPageSize}
+            orientation={bookOrientation}
+          />
+        )}
       </Box>
       
       <Menu

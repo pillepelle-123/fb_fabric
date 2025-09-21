@@ -33,8 +33,15 @@ const initDB = async () => {
         title VARCHAR(100) NOT NULL,
         description TEXT,
         owner_id INTEGER REFERENCES users(id),
+        page_size VARCHAR(20) DEFAULT 'A4',
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       )
+    `);
+    
+    // Add page_size column if it doesn't exist
+    await pool.query(`
+      ALTER TABLE books 
+      ADD COLUMN IF NOT EXISTS page_size VARCHAR(20) DEFAULT 'A4'
     `);
     console.log('✓ Books table created');
 
