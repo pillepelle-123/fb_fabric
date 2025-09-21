@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Tldraw } from 'tldraw';
 import 'tldraw/tldraw.css';
+import BoundedCanvas from '../components/BoundedCanvas';
 import io from 'socket.io-client';
 import axios from 'axios';
 import { API_URL } from '../config';
@@ -51,7 +52,18 @@ const BookEditor = ({ token, setToken }) => {
     
     fetchPages();
 
-    return () => newSocket.close();
+    // Suppress ResizeObserver errors
+    const resizeObserverErrorHandler = (e) => {
+      if (e.message === 'ResizeObserver loop completed with undelivered notifications.') {
+        e.stopImmediatePropagation();
+      }
+    };
+    window.addEventListener('error', resizeObserverErrorHandler);
+
+    return () => {
+      newSocket.close();
+      window.removeEventListener('error', resizeObserverErrorHandler);
+    };
   }, [bookId, currentPage]);
 
 
@@ -68,8 +80,8 @@ const BookEditor = ({ token, setToken }) => {
         const savedPageData = pages.find(p => p.page_number === currentPage);
         if (savedPageData && savedPageData.canvas_data && typeof savedPageData.canvas_data === 'object') {
           editor.store.loadSnapshot(savedPageData.canvas_data);
-        } else if (tempPages.find(p => p.page_number === currentPage)) {
-          // Clear canvas for new temp page without valid data
+        } else if (tempPageData && tempPageData.canvas_data === null) {
+          // Only clear canvas for new temp pages that were just created
           setTimeout(() => {
             editor.selectAll();
             editor.deleteShapes(editor.getSelectedShapeIds());
@@ -77,7 +89,7 @@ const BookEditor = ({ token, setToken }) => {
         }
       }
     }
-  }, [editor, pages, tempPages, deletedPages, currentPage]);
+  }, [editor, currentPage]);
 
 
 
@@ -162,10 +174,9 @@ const BookEditor = ({ token, setToken }) => {
         );
       }
       
-      // Clear temp pages and deleted pages, then refresh
+      // Clear temp pages and deleted pages
       setTempPages([]);
       setDeletedPages([]);
-      fetchPages();
       
       showSnackbar('Freundschaftsbuch erfolgreich gespeichert!', 'success');
     } catch (error) {
@@ -209,6 +220,17 @@ const BookEditor = ({ token, setToken }) => {
     }
     
     setCurrentPage(newPage);
+    
+    // Zoom to content after page switch
+    if (editor) {
+      
+      setTimeout(() => {
+        const shapes = editor.getCurrentPageShapes();
+        if (shapes.length > 0) {
+          editor.zoomToFit();
+        }
+      }, 1000);
+    }
   };
 
   const addNewPage = () => {
@@ -245,7 +267,16 @@ const BookEditor = ({ token, setToken }) => {
         setTempPages(prev => prev.filter(p => p.page_number !== currentPage));
         
         // Always go to previous page
-        setCurrentPage(Math.max(1, currentPage - 1));
+        const newPage = Math.max(1, currentPage - 1);
+        setCurrentPage(newPage);
+        
+        // Zoom to fit after page deletion
+        if (editor) {
+          setTimeout(() => {
+            editor.zoomToFit();
+          }, 200);
+        }
+        
         setConfirmDialog({ open: false, onConfirm: null });
       }
     });
@@ -364,12 +395,9 @@ const BookEditor = ({ token, setToken }) => {
       
       <Box className="tldraw-container" sx={{ 
         flex: 1, 
-        minHeight: 0,
-        '& .tl-canvas': {
-          transform: 'translateY(-112px) !important'
-        }
+        minHeight: 0
       }}>
-        <Tldraw 
+        <BoundedCanvas 
           onMount={(editor) => {
             setEditor(editor);
           }}
