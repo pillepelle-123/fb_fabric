@@ -56,7 +56,28 @@ const BookEditor = ({ token, setToken }) => {
 
 
 
-  // SDK handles data loading automatically via roomId
+  useEffect(() => {
+    if (editor) {
+      // First check temp pages for any changes
+      const tempPageData = tempPages.find(p => p.page_number === currentPage);
+      
+      if (tempPageData && tempPageData.canvas_data && typeof tempPageData.canvas_data === 'object') {
+        editor.store.loadSnapshot(tempPageData.canvas_data);
+      } else {
+        // Then check saved pages
+        const savedPageData = pages.find(p => p.page_number === currentPage);
+        if (savedPageData && savedPageData.canvas_data && typeof savedPageData.canvas_data === 'object') {
+          editor.store.loadSnapshot(savedPageData.canvas_data);
+        } else if (tempPages.find(p => p.page_number === currentPage)) {
+          // Clear canvas for new temp page without valid data
+          setTimeout(() => {
+            editor.selectAll();
+            editor.deleteShapes(editor.getSelectedShapeIds());
+          }, 100);
+        }
+      }
+    }
+  }, [editor, pages, tempPages, deletedPages, currentPage]);
 
 
 
@@ -92,7 +113,64 @@ const BookEditor = ({ token, setToken }) => {
   }, [bookId, token]);
 
   const savePage = async () => {
-    showSnackbar('SDK handles persistence automatically', 'info');
+    if (!editor) {
+      showSnackbar('Editor nicht bereit', 'warning');
+      return;
+    }
+    
+    try {
+      // Save current page canvas data first
+      const canvasData = editor.store.getSnapshot();
+      
+      // Collect all pages with their data
+      const allPagesToSave = [];
+      
+      // Add existing pages (excluding deleted ones)
+      for (const page of pages) {
+        if (!deletedPages.includes(page.page_number)) {
+          const tempPageData = tempPages.find(p => p.page_number === page.page_number);
+          const pageData = page.page_number === currentPage ? canvasData : 
+                          (tempPageData?.canvas_data || page.canvas_data);
+          allPagesToSave.push({ original_number: page.page_number, canvas_data: pageData });
+        }
+      }
+      
+      // Add temp pages (new pages)
+      for (const tempPage of tempPages) {
+        if (!pages.find(p => p.page_number === tempPage.page_number)) {
+          const pageData = tempPage.page_number === currentPage ? canvasData : 
+                          (tempPage.canvas_data || {});
+          allPagesToSave.push({ original_number: tempPage.page_number, canvas_data: pageData });
+        }
+      }
+      
+      // Sort by original page number
+      allPagesToSave.sort((a, b) => a.original_number - b.original_number);
+      
+      // Delete all existing pages
+      await axios.delete(
+        `${API_URL}/api/books/${bookId}/pages/all`,
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      
+      // Save pages with sequential numbering (1, 2, 3...)
+      for (let i = 0; i < allPagesToSave.length; i++) {
+        await axios.put(
+          `${API_URL}/api/books/${bookId}/pages/${i + 1}`,
+          { canvasData: allPagesToSave[i].canvas_data },
+          { headers: { Authorization: `Bearer ${token}` } }
+        );
+      }
+      
+      // Clear temp pages and deleted pages, then refresh
+      setTempPages([]);
+      setDeletedPages([]);
+      fetchPages();
+      
+      showSnackbar('Freundschaftsbuch erfolgreich gespeichert!', 'success');
+    } catch (error) {
+      showSnackbar('Fehler beim Speichern: ' + (error.response?.data?.error || error.message), 'error');
+    }
   };
 
   const changePage = (newPage) => {
