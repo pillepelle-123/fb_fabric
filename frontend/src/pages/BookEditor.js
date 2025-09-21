@@ -372,12 +372,15 @@ const BookEditor = ({ token, setToken }) => {
       
       <Box className="tldraw-container" sx={{ 
         flex: 1, 
-        minHeight: 0
+        minHeight: 0,
+        '& .tl-canvas': {
+          transform: 'translateY(-112px) !important'
+        }
       }}>
         <Tldraw 
+          inferDarkMode={false}
           onMount={(editorInstance) => {
             setEditor(editorInstance);
-            editorInstance.setCamera({ x: 0, y: 0, z: 1 });
           }}
         />
       </Box>
