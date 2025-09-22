@@ -112,12 +112,16 @@ const BookEditor = ({ token, setToken }) => {
       });
       setPages(response.data);
       
-      // Load all pages into temp storage
-      const tempData = {};
-      response.data.forEach(page => {
-        tempData[page.page_number] = page.canvas_data;
+      // Only load pages into temp storage if they don't already exist (preserve unsaved changes)
+      setTempPages(prev => {
+        const newTempData = { ...prev };
+        response.data.forEach(page => {
+          if (!(page.page_number in newTempData)) {
+            newTempData[page.page_number] = page.canvas_data;
+          }
+        });
+        return newTempData;
       });
-      setTempPages(tempData);
 
     } catch (error) {
       console.error('Failed to fetch pages:', error);
