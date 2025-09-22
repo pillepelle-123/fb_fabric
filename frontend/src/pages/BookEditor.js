@@ -5,7 +5,7 @@ import 'tldraw/tldraw.css';
 import BoundedCanvas from '../components/BoundedCanvas';
 import io from 'socket.io-client';
 import axios from 'axios';
-import { API_URL } from '../config';
+import { API_URL, getPageDimensions } from '../config';
 import {
   AppBar,
   Toolbar,
@@ -24,10 +24,14 @@ import {
   Add as AddIcon,
   Delete as DeleteIcon,
   Save as SaveIcon,
+  Print as PrintIcon,
 } from '@mui/icons-material';
 import AppBarComponent from '../components/AppBarComponent';
 import { useSnackbar } from '../components/SnackbarProvider';
 import ConfirmDialog from '../components/ConfirmDialog';
+import PDFQualityDialog from '../components/PDFQualityDialog';
+import jsPDF from 'jspdf';
+import html2canvas from 'html2canvas';
 
 const BookEditor = ({ token, setToken }) => {
   const { showSnackbar } = useSnackbar();
@@ -45,6 +49,7 @@ const BookEditor = ({ token, setToken }) => {
   const [bookPageSize, setBookPageSize] = useState('A4');
   const [bookOrientation, setBookOrientation] = useState('portrait');
   const [bookDataLoaded, setBookDataLoaded] = useState(false);
+  const [pdfQualityDialog, setPdfQualityDialog] = useState(false);
 
 
   useEffect(() => {
@@ -298,6 +303,158 @@ const BookEditor = ({ token, setToken }) => {
     return allPages.length > 0 ? Math.max(...allPages.map(p => p.page_number)) : 1;
   };
 
+  const exportToPDF = async (qualityOption = { quality: 0.7, format: 'jpeg' }) => {
+    if (!editor) {
+      showSnackbar('Editor nicht bereit', 'warning');
+      return;
+    }
+
+    try {
+      showSnackbar('PDF wird erstellt...', 'info');
+      
+      // Get unique pages only
+      const uniquePages = new Map();
+      [...pages, ...tempPages]
+        .filter(p => !deletedPages.includes(p.page_number))
+        .forEach(p => uniquePages.set(p.page_number, p));
+      
+      const allPages = Array.from(uniquePages.values())
+        .sort((a, b) => a.page_number - b.page_number);
+
+      if (allPages.length === 0) {
+        showSnackbar('Keine Seiten zum Drucken vorhanden', 'warning');
+        return;
+      }
+
+      const pdf = new jsPDF({
+        orientation: bookOrientation,
+        unit: 'mm',
+        format: bookPageSize.toLowerCase()
+      });
+
+      const currentPageData = editor.store.getSnapshot();
+      
+      for (let i = 0; i < allPages.length; i++) {
+        const page = allPages[i];
+        
+        // Load page data
+        const tempPageData = tempPages.find(p => p.page_number === page.page_number);
+        const pageData = page.page_number === currentPage ? currentPageData :
+                        (tempPageData?.canvas_data || page.canvas_data);
+        
+        if (pageData && typeof pageData === 'object' && pageData.schema) {
+          editor.store.loadSnapshot(pageData);
+        }
+        
+        await new Promise(resolve => setTimeout(resolve, 300));
+        
+        if (i > 0) pdf.addPage();
+        
+        const { pageWidth, pageHeight } = getPageDimensions(bookPageSize, bookOrientation);
+        const canvas = document.createElement('canvas');
+        const ctx = canvas.getContext('2d');
+        
+        canvas.width = pageWidth;
+        canvas.height = pageHeight;
+        ctx.fillStyle = 'white';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        
+        // Get content shapes (exclude boundary shapes)
+        const shapes = editor.getCurrentPageShapes().filter(shape => 
+          !shape.id.includes('boundary')
+        );
+        
+        // Create invisible corner markers at exact page boundary corners
+        const topLeft = editor.createShape({
+          type: 'geo',
+          x: -pageWidth / 2,
+          y: -pageHeight / 2,
+          props: { w: 1, h: 1, geo: 'rectangle', fill: 'none', color: 'white', size: 's' }
+        });
+        const bottomRight = editor.createShape({
+          type: 'geo', 
+          x: pageWidth / 2 - 1,
+          y: pageHeight / 2 - 1,
+          props: { w: 1, h: 1, geo: 'rectangle', fill: 'none', color: 'white', size: 's' }
+        });
+        
+        await new Promise(resolve => setTimeout(resolve, 100));
+        
+        const allShapes = editor.getCurrentPageShapes().filter(shape => {
+          // Exclude marker shapes only, include boundaries
+          if (shape.id === topLeft || shape.id === bottomRight) return false;
+          return true;
+        });
+        
+        const svg = await editor.getSvg(allShapes, {
+          scale: 1,
+          background: false
+        });
+        
+        // Remove markers
+        editor.deleteShape(topLeft);
+        editor.deleteShape(bottomRight);
+        
+        if (svg) {
+          const svgData = new XMLSerializer().serializeToString(svg);
+          const img = new Image();
+          
+          await new Promise((resolve) => {
+            img.onload = () => {
+              // Find page boundary position in the SVG
+              const svgBounds = img.width;
+              const svgHeight = img.height;
+              const centerX = svgBounds / 2;
+              const centerY = svgHeight / 2;
+              
+              // Calculate page boundary rectangle position
+              const pageRect = {
+                x: centerX - pageWidth / 2,
+                y: centerY - pageHeight / 2,
+                width: pageWidth,
+                height: pageHeight
+              };
+              
+              // Clip and draw only the page boundary area
+              ctx.save();
+              ctx.beginPath();
+              ctx.rect(0, 0, pageWidth, pageHeight);
+              ctx.clip();
+              
+              ctx.drawImage(
+                img,
+                pageRect.x, pageRect.y, pageRect.width, pageRect.height,
+                0, 0, pageWidth, pageHeight
+              );
+              
+              ctx.restore();
+              resolve();
+            };
+            img.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svgData);
+          });
+        }
+        
+        const imgData = canvas.toDataURL(`image/${qualityOption.format}`, qualityOption.quality);
+        const pdfWidth = pdf.internal.pageSize.getWidth();
+        const pdfHeight = pdf.internal.pageSize.getHeight();
+        
+        pdf.addImage(imgData, 'JPEG', 0, 0, pdfWidth, pdfHeight);
+      }
+      
+      // Restore current page
+      if (currentPageData) {
+        editor.store.loadSnapshot(currentPageData);
+      }
+      
+      pdf.save(`${bookTitle || 'Freundschaftsbuch'}.pdf`);
+      showSnackbar('PDF erfolgreich erstellt!', 'success');
+      
+    } catch (error) {
+      console.error('PDF export error:', error);
+      showSnackbar('Fehler beim Erstellen der PDF', 'error');
+    }
+  };
+
   // Auto-create first page if book has no pages
   useEffect(() => {
     if (pages.length === 0 && tempPages.length === 0 && editor && bookDataLoaded) {
@@ -377,6 +534,14 @@ const BookEditor = ({ token, setToken }) => {
           
           <Box sx={{ display: 'flex', gap: 1 }}>
             <Button
+              startIcon={<PrintIcon />}
+              onClick={() => setPdfQualityDialog(true)}
+              size="small"
+              variant="outlined"
+            >
+              Drucken
+            </Button>
+            <Button
               startIcon={<AddIcon />}
               onClick={addNewPage}
               size="small"
@@ -450,6 +615,15 @@ const BookEditor = ({ token, setToken }) => {
         message="Möchten Sie diese Seite wirklich löschen? Diese Aktion kann nicht rückgängig gemacht werden."
         onConfirm={confirmDialog.onConfirm}
         onCancel={() => setConfirmDialog({ open: false, onConfirm: null })}
+      />
+      
+      <PDFQualityDialog
+        open={pdfQualityDialog}
+        onClose={() => setPdfQualityDialog(false)}
+        onConfirm={(qualityOption) => {
+          setPdfQualityDialog(false);
+          exportToPDF(qualityOption);
+        }}
       />
     </Box>
   );

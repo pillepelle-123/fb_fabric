@@ -45,6 +45,13 @@ export const PAGE_SIZES = {
     pageHeight: 3300,
     canvasWidth: 2754,
     canvasHeight: 3564
+  },
+  SQUARE_SM: {
+    name: 'Quadratisch (15x15 cm)',
+    pageWidth: 1771,
+    pageHeight: 1771,
+    canvasWidth: 1913,
+    canvasHeight: 1913
   }
 };
 
