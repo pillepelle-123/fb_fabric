@@ -327,8 +327,7 @@ const BookEditor = ({ token, setToken }) => {
             <IconButton
               onClick={() => {
                 const nextPage = currentPage + 1;
-                const pageExists = pages.find(p => p.page_number === nextPage);
-                if (pageExists) changePage(nextPage);
+                if (tempPages[nextPage]) changePage(nextPage);
               }}
               disabled={!tempPages[currentPage + 1]}
               size="small"
