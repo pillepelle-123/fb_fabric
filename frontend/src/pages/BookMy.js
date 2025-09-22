@@ -123,14 +123,6 @@ const BookMy = ({ token, setToken }) => {
               <>
                 <Button
                   variant="contained"
-                  startIcon={<AddIcon />}
-                  onClick={() => navigate('/book/create')}
-                  sx={{ mb: 0 }}
-                >
-                  {!isMobile && 'Neues Buch erstellen'}
-                </Button>
-                <Button
-                  variant="contained"
                   color="primary"
                   startIcon={<ArchiveIcon />}
                   onClick={() => navigate('/book/archive')}
@@ -138,6 +130,15 @@ const BookMy = ({ token, setToken }) => {
                 >
                   {!isMobile && 'Zum Archiv'}
                 </Button>
+                <Button
+                  variant="contained"
+                  startIcon={<AddIcon />}
+                  onClick={() => navigate('/book/create')}
+                  sx={{ mb: 0 }}
+                >
+                  {!isMobile && 'Neues Buch erstellen'}
+                </Button>
+
                 <Button
                   variant="outlined"
                   startIcon={<SelectIcon />}

@@ -5,6 +5,63 @@ const cors = require('cors');
 const { pool, initDB } = require('./database');
 const { generateToken, verifyToken, checkPermission, bcrypt } = require('./auth');
 
+// Page sizes at 300 DPI in pixels
+const PAGE_SIZES = {
+  A4: {
+    name: 'DIN A4',
+    pageWidth: 2480,
+    pageHeight: 3508,
+    canvasWidth: 2678,
+    canvasHeight: 3789
+  },
+  A3: {
+    name: 'DIN A3',
+    pageWidth: 3508,
+    pageHeight: 4961,
+    canvasWidth: 3789,
+    canvasHeight: 5358
+  },
+  LETTER: {
+    name: 'US Letter',
+    pageWidth: 2550,
+    pageHeight: 3300,
+    canvasWidth: 2754,
+    canvasHeight: 3564
+  },
+  SQUARE_SM: {
+    name: 'Quadratisch (15x15 cm)',
+    pageWidth: 1771,
+    pageHeight: 1771,
+    canvasWidth: 1913,
+    canvasHeight: 1913
+  }
+};
+
+const getPageDimensions = (pageSize, orientation = 'portrait') => {
+  const size = PAGE_SIZES[pageSize] || PAGE_SIZES.A4;
+  
+  if (orientation === 'landscape') {
+    return {
+      ...size,
+      pageWidth: size.pageHeight,
+      pageHeight: size.pageWidth,
+      canvasWidth: size.canvasHeight,
+      canvasHeight: size.canvasWidth
+    };
+  }
+  
+  return size;
+};
+
+const createInitialCanvasData = (pageSize, orientation) => {
+  // Return empty canvas - let frontend create the page boundary dynamically
+  return {
+    version: '5.2.4',
+    objects: [],
+    background: '#f5f5f5'
+  };
+};
+
 const app = express();
 const server = http.createServer(app);
 // CORS configuration for both development and production
@@ -190,7 +247,12 @@ app.post('/api/books', verifyToken, async (req, res) => {
       [bookResult.rows[0].id, req.userId, 'admin']
     );
     
-
+    // Create initial page with page boundary
+    const initialCanvasData = createInitialCanvasData(page_size || 'A4', orientation || 'portrait');
+    await pool.query(
+      'INSERT INTO public.pages (book_id, page_number, canvas_data) VALUES ($1, $2, $3)',
+      [bookResult.rows[0].id, 1, JSON.stringify(initialCanvasData)]
+    );
     
     res.json(bookResult.rows[0]);
   } catch (err) {
@@ -340,9 +402,19 @@ app.put('/api/books/:bookId/pages/:pageNumber', verifyToken, checkPermission('ed
           [canvasData, bookId, pageNumber]
         );
       } else {
+        // Get book details for page size and orientation
+        const bookResult = await client.query(
+          'SELECT page_size, orientation FROM public.books WHERE id = $1',
+          [bookId]
+        );
+        const book = bookResult.rows[0];
+        
+        // If no canvas data provided, create initial canvas with page boundary
+        const finalCanvasData = canvasData || JSON.stringify(createInitialCanvasData(book.page_size, book.orientation));
+        
         await client.query(
           'INSERT INTO public.pages (book_id, page_number, canvas_data) VALUES ($1, $2, $3)',
-          [bookId, pageNumber, canvasData]
+          [bookId, pageNumber, finalCanvasData]
         );
       }
 

@@ -123,15 +123,33 @@ const FabricCanvas = ({ onMount, pageSize = 'A4', orientation = 'portrait', onCa
         getCanvasData: () => fabricCanvas.toJSON(['isPageBoundary']),
         loadCanvasData: (data) => {
           fabricCanvas.loadFromJSON(data, () => {
-            // Ensure page boundary is at the back and non-selectable
-            const boundary = fabricCanvas.getObjects().find(obj => obj.isPageBoundary);
-            if (boundary) {
+            // Ensure page boundary is always present
+            let boundary = fabricCanvas.getObjects().find(obj => obj.isPageBoundary);
+            if (!boundary) {
+              const scale = Math.min(containerWidth / (pageWidth * 1.2), containerHeight / (pageHeight * 1.2));
+              const scaledPageWidth = pageWidth * scale;
+              const scaledPageHeight = pageHeight * scale;
+              
+              boundary = new fabric.Rect({
+                left: (containerWidth - scaledPageWidth) / 2,
+                top: (containerHeight - scaledPageHeight) / 2,
+                width: scaledPageWidth,
+                height: scaledPageHeight,
+                fill: 'white',
+                stroke: '#333',
+                strokeWidth: 2,
+                selectable: false,
+                evented: false,
+                isPageBoundary: true
+              });
+              fabricCanvas.add(boundary);
+            } else {
               boundary.set({
                 selectable: false,
                 evented: false
               });
-              fabricCanvas.sendToBack(boundary);
             }
+            fabricCanvas.sendToBack(boundary);
             fabricCanvas.renderAll();
           });
         },
