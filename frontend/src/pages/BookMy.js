@@ -43,7 +43,12 @@ const BookMy = ({ token, setToken }) => {
         headers: { Authorization: `Bearer ${token}` },
         params: { archived: false }
       });
-      setBooks(response.data);
+      const sortedBooks = response.data.sort((a, b) => {
+        const dateA = new Date(a.last_saved_at || a.created_at);
+        const dateB = new Date(b.last_saved_at || b.created_at);
+        return dateB - dateA; // Descending order
+      });
+      setBooks(sortedBooks);
     } catch (error) {
       console.error('Failed to fetch books');
     }

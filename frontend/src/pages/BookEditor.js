@@ -1,8 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { Tldraw } from 'tldraw';
-import 'tldraw/tldraw.css';
-import BoundedCanvas from '../components/BoundedCanvas';
+import FabricCanvas from '../components/FabricCanvas';
 import io from 'socket.io-client';
 import axios from 'axios';
 import { API_URL, getPageDimensions } from '../config';
@@ -40,7 +38,7 @@ const BookEditor = ({ token, setToken }) => {
   const [socket, setSocket] = useState(null);
   const [currentPage, setCurrentPage] = useState(1);
   const [pages, setPages] = useState([]);
-  const [editor, setEditor] = useState(null);
+  const [canvasAPI, setCanvasAPI] = useState(null);
   const [tempPages, setTempPages] = useState([]);
   const [deletedPages, setDeletedPages] = useState([]);
   const [confirmDialog, setConfirmDialog] = useState({ open: false, onConfirm: null });
@@ -77,27 +75,19 @@ const BookEditor = ({ token, setToken }) => {
 
 
   useEffect(() => {
-    if (editor) {
-      // First check temp pages for any changes
+    if (canvasAPI) {
       const tempPageData = tempPages.find(p => p.page_number === currentPage);
       
-      if (tempPageData && tempPageData.canvas_data && typeof tempPageData.canvas_data === 'object' && tempPageData.canvas_data.schema) {
-        editor.store.loadSnapshot(tempPageData.canvas_data);
+      if (tempPageData && tempPageData.canvas_data && typeof tempPageData.canvas_data === 'object') {
+        canvasAPI.loadCanvasData(tempPageData.canvas_data);
       } else {
-        // Then check saved pages
         const savedPageData = pages.find(p => p.page_number === currentPage);
-        if (savedPageData && savedPageData.canvas_data && typeof savedPageData.canvas_data === 'object' && savedPageData.canvas_data.schema) {
-          editor.store.loadSnapshot(savedPageData.canvas_data);
-        } else if (tempPageData && tempPageData.canvas_data === null) {
-          // Only clear canvas for new temp pages that were just created
-          setTimeout(() => {
-            editor.selectAll();
-            editor.deleteShapes(editor.getSelectedShapeIds());
-          }, 100);
+        if (savedPageData && savedPageData.canvas_data && typeof savedPageData.canvas_data === 'object') {
+          canvasAPI.loadCanvasData(savedPageData.canvas_data);
         }
       }
     }
-  }, [editor, currentPage]);
+  }, [canvasAPI, currentPage, pages, tempPages]);
 
 
 
@@ -136,14 +126,14 @@ const BookEditor = ({ token, setToken }) => {
   }, [bookId, token]);
 
   const savePage = async () => {
-    if (!editor) {
-      showSnackbar('Editor nicht bereit', 'warning');
+    if (!canvasAPI) {
+      showSnackbar('Canvas nicht bereit', 'warning');
       return;
     }
     
     try {
       // Save current page canvas data first
-      const canvasData = editor.store.getSnapshot();
+      const canvasData = canvasAPI.getCanvasData();
       
       // Collect all pages with their data
       const allPagesToSave = [];
@@ -189,6 +179,9 @@ const BookEditor = ({ token, setToken }) => {
       setTempPages([]);
       setDeletedPages([]);
       
+      // Refresh pages data to reflect saved state
+      await fetchPages();
+      
       showSnackbar('Freundschaftsbuch erfolgreich gespeichert!', 'success');
     } catch (error) {
       showSnackbar('Fehler beim Speichern: ' + (error.response?.data?.error || error.message), 'error');
@@ -202,8 +195,8 @@ const BookEditor = ({ token, setToken }) => {
     }
     
     // Save current page content before switching
-    if (editor) {
-      const canvasData = editor.store.getSnapshot();
+    if (canvasAPI) {
+      const canvasData = canvasAPI.getCanvasData();
       
       // Update temp page if it exists, or update saved page data
       const tempPageIndex = tempPages.findIndex(p => p.page_number === currentPage);
@@ -232,16 +225,7 @@ const BookEditor = ({ token, setToken }) => {
     
     setCurrentPage(newPage);
     
-    // Zoom to content after page switch
-    if (editor) {
-      
-      setTimeout(() => {
-        const shapes = editor.getCurrentPageShapes();
-        if (shapes.length > 0) {
-          editor.zoomToFit();
-        }
-      }, 1000);
-    }
+    // Canvas will handle page switch rendering
   };
 
   const addNewPage = () => {
@@ -257,10 +241,9 @@ const BookEditor = ({ token, setToken }) => {
     setCurrentPage(pageNumber);
     
     // Clear canvas for new page
-    if (editor) {
+    if (canvasAPI) {
       setTimeout(() => {
-        editor.selectAll();
-        editor.deleteShapes(editor.getSelectedShapeIds());
+        canvasAPI.clearCanvas();
       }, 100);
     }
   };
@@ -281,12 +264,7 @@ const BookEditor = ({ token, setToken }) => {
         const newPage = Math.max(1, currentPage - 1);
         setCurrentPage(newPage);
         
-        // Zoom to fit after page deletion
-        if (editor) {
-          setTimeout(() => {
-            editor.zoomToFit();
-          }, 200);
-        }
+        // Canvas will handle page deletion rendering
         
         setConfirmDialog({ open: false, onConfirm: null });
       }
@@ -304,15 +282,14 @@ const BookEditor = ({ token, setToken }) => {
   };
 
   const exportToPDF = async (qualityOption = { quality: 0.7, format: 'jpeg' }) => {
-    if (!editor) {
-      showSnackbar('Editor nicht bereit', 'warning');
+    if (!canvasAPI) {
+      showSnackbar('Canvas nicht bereit', 'warning');
       return;
     }
 
     try {
       showSnackbar('PDF wird erstellt...', 'info');
       
-      // Get unique pages only
       const uniquePages = new Map();
       [...pages, ...tempPages]
         .filter(p => !deletedPages.includes(p.page_number))
@@ -332,7 +309,7 @@ const BookEditor = ({ token, setToken }) => {
         format: bookPageSize.toLowerCase()
       });
 
-      const currentPageData = editor.store.getSnapshot();
+      const currentPageData = canvasAPI.getCanvasData();
       
       for (let i = 0; i < allPages.length; i++) {
         const page = allPages[i];
@@ -342,108 +319,28 @@ const BookEditor = ({ token, setToken }) => {
         const pageData = page.page_number === currentPage ? currentPageData :
                         (tempPageData?.canvas_data || page.canvas_data);
         
-        if (pageData && typeof pageData === 'object' && pageData.schema) {
-          editor.store.loadSnapshot(pageData);
-        }
-        
-        await new Promise(resolve => setTimeout(resolve, 300));
-        
-        if (i > 0) pdf.addPage();
-        
-        const { pageWidth, pageHeight } = getPageDimensions(bookPageSize, bookOrientation);
-        const canvas = document.createElement('canvas');
-        const ctx = canvas.getContext('2d');
-        
-        canvas.width = pageWidth;
-        canvas.height = pageHeight;
-        ctx.fillStyle = 'white';
-        ctx.fillRect(0, 0, canvas.width, canvas.height);
-        
-        // Get content shapes (exclude boundary shapes)
-        const shapes = editor.getCurrentPageShapes().filter(shape => 
-          !shape.id.includes('boundary')
-        );
-        
-        // Create invisible corner markers at exact page boundary corners
-        const topLeft = editor.createShape({
-          type: 'geo',
-          x: -pageWidth / 2,
-          y: -pageHeight / 2,
-          props: { w: 1, h: 1, geo: 'rectangle', fill: 'none', color: 'white', size: 's' }
-        });
-        const bottomRight = editor.createShape({
-          type: 'geo', 
-          x: pageWidth / 2 - 1,
-          y: pageHeight / 2 - 1,
-          props: { w: 1, h: 1, geo: 'rectangle', fill: 'none', color: 'white', size: 's' }
-        });
-        
-        await new Promise(resolve => setTimeout(resolve, 100));
-        
-        const allShapes = editor.getCurrentPageShapes().filter(shape => {
-          // Exclude marker shapes only, include boundaries
-          if (shape.id === topLeft || shape.id === bottomRight) return false;
-          return true;
-        });
-        
-        const svg = await editor.getSvg(allShapes, {
-          scale: 1,
-          background: false
-        });
-        
-        // Remove markers
-        editor.deleteShape(topLeft);
-        editor.deleteShape(bottomRight);
-        
-        if (svg) {
-          const svgData = new XMLSerializer().serializeToString(svg);
-          const img = new Image();
+        if (pageData && typeof pageData === 'object') {
+          canvasAPI.loadCanvasData(pageData);
           
-          await new Promise((resolve) => {
-            img.onload = () => {
-              // Find page boundary position in the SVG
-              const svgBounds = img.width;
-              const svgHeight = img.height;
-              const centerX = svgBounds / 2;
-              const centerY = svgHeight / 2;
-              
-              // Calculate page boundary rectangle position
-              const pageRect = {
-                x: centerX - pageWidth / 2,
-                y: centerY - pageHeight / 2,
-                width: pageWidth,
-                height: pageHeight
-              };
-              
-              // Clip and draw only the page boundary area
-              ctx.save();
-              ctx.beginPath();
-              ctx.rect(0, 0, pageWidth, pageHeight);
-              ctx.clip();
-              
-              ctx.drawImage(
-                img,
-                pageRect.x, pageRect.y, pageRect.width, pageRect.height,
-                0, 0, pageWidth, pageHeight
-              );
-              
-              ctx.restore();
-              resolve();
-            };
-            img.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svgData);
-          });
+          // Wait for canvas to render
+          await new Promise(resolve => setTimeout(resolve, 300));
+          
+          // Export page content clipped to boundaries
+          const imgData = canvasAPI.exportToPDF(qualityOption);
+          
+          if (imgData) {
+            if (i > 0) pdf.addPage();
+            
+            const pdfWidth = pdf.internal.pageSize.getWidth();
+            const pdfHeight = pdf.internal.pageSize.getHeight();
+            pdf.addImage(imgData, 'JPEG', 0, 0, pdfWidth, pdfHeight);
+          }
         }
-        
-        const imgData = canvas.toDataURL(`image/${qualityOption.format}`, qualityOption.quality);
-        const pdfWidth = pdf.internal.pageSize.getWidth();
-        const pdfHeight = pdf.internal.pageSize.getHeight();
-        
-        pdf.addImage(imgData, 'JPEG', 0, 0, pdfWidth, pdfHeight);
       }
       
       // Restore current page
       if (currentPageData) {
-        editor.store.loadSnapshot(currentPageData);
+        canvasAPI.loadCanvasData(currentPageData);
       }
       
       pdf.save(`${bookTitle || 'Freundschaftsbuch'}.pdf`);
@@ -457,10 +354,10 @@ const BookEditor = ({ token, setToken }) => {
 
   // Auto-create first page if book has no pages
   useEffect(() => {
-    if (pages.length === 0 && tempPages.length === 0 && editor && bookDataLoaded) {
+    if (pages.length === 0 && tempPages.length === 0 && canvasAPI && bookDataLoaded) {
       addNewPage();
     }
-  }, [pages, tempPages, editor, bookDataLoaded]);
+  }, [pages, tempPages, canvasAPI, bookDataLoaded]);
 
   return (
     <Box sx={{ height: '100vh', display: 'flex', flexDirection: 'column' }}>
@@ -571,17 +468,20 @@ const BookEditor = ({ token, setToken }) => {
         </Toolbar>
       </AppBar>
       
-      <Box className="tldraw-container" sx={{ 
+      <Box className="fabric-container" sx={{ 
         flex: 1, 
         minHeight: 0
       }}>
         {bookDataLoaded && (
-          <BoundedCanvas 
-            onMount={(editor) => {
-              setEditor(editor);
+          <FabricCanvas 
+            onMount={(api) => {
+              setCanvasAPI(api);
             }}
             pageSize={bookPageSize}
             orientation={bookOrientation}
+            onCanvasChange={(data) => {
+              // Handle canvas changes for real-time collaboration
+            }}
           />
         )}
       </Box>

@@ -34,7 +34,7 @@ const initDB = async () => {
         title VARCHAR(100) NOT NULL,
         description TEXT,
         owner_id INTEGER REFERENCES users(id),
-        size VARCHAR(20) DEFAULT 'A4',
+        page_size VARCHAR(20) DEFAULT 'A4',
         orientation VARCHAR(20) DEFAULT 'portrait',
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         last_saved_at TIMESTAMP
@@ -44,7 +44,7 @@ const initDB = async () => {
     // Add columns if they don't exist (for existing databases)
     await pool.query(`
       ALTER TABLE books 
-      ADD COLUMN IF NOT EXISTS size VARCHAR(20) DEFAULT 'A4',
+      ADD COLUMN IF NOT EXISTS page_size VARCHAR(20) DEFAULT 'A4',
       ADD COLUMN IF NOT EXISTS orientation VARCHAR(20) DEFAULT 'portrait',
       ADD COLUMN IF NOT EXISTS last_saved_at TIMESTAMP,
       ADD COLUMN IF NOT EXISTS archived BOOLEAN DEFAULT FALSE

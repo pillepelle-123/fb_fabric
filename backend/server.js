@@ -179,10 +179,10 @@ app.get('/api/books', verifyToken, async (req, res) => {
 
 app.post('/api/books', verifyToken, async (req, res) => {
   try {
-    const { title, description, size, orientation, page_size } = req.body;
+    const { title, description, page_size, orientation } = req.body;
     const bookResult = await pool.query(
-      'INSERT INTO public.books (title, description, owner_id, size, orientation, page_size) VALUES ($1, $2, $3, $4, $5, $6) RETURNING *',
-      [title, description, req.userId, size || 'A4', orientation || 'portrait', page_size || 'A4']
+      'INSERT INTO public.books (title, description, owner_id, page_size, orientation) VALUES ($1, $2, $3, $4, $5) RETURNING *',
+      [title, description, req.userId, page_size || 'A4', orientation || 'portrait']
     );
     
     await pool.query(
@@ -219,12 +219,12 @@ app.put('/api/books/:bookId', verifyToken, checkPermission('admin'), async (req,
 // Update book settings
 app.put('/api/books/:bookId/settings', verifyToken, checkPermission('admin'), async (req, res) => {
   try {
-    const { title, description, size, orientation } = req.body;
+    const { title, description, page_size, orientation } = req.body;
     const { bookId } = req.params;
     
     await pool.query(
-      'UPDATE public.books SET title = $1, description = $2, size = $3, orientation = $4, last_saved_at = NOW() WHERE id = $5',
-      [title, description, size, orientation, bookId]
+      'UPDATE public.books SET title = $1, description = $2, page_size = $3, orientation = $4, last_saved_at = NOW() WHERE id = $5',
+      [title, description, page_size, orientation, bookId]
     );
     
     res.json({ success: true });
